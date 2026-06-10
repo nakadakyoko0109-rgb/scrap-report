@@ -54,6 +54,37 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
 .loading::after{content:'...';animation:ld 1s steps(4,end) infinite}
 @keyframes ld{0%,100%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
 @media(max-width:600px){.tabs{overflow-x:auto}.tab{white-space:nowrap}.row{flex-direction:column;align-items:flex-start}}
+
+@media print{
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  header,.tabs,.content,#print-btn-area{display:none!important}
+  #print-area{display:block!important}
+  body{background:#fff;font-size:11px;font-family:'MS Gothic',Arial,sans-serif}
+  .p-page{width:257mm;min-height:182mm;padding:8mm 10mm;page-break-after:always;box-sizing:border-box}
+  .p-page:last-child{page-break-after:avoid}
+  .p-title{font-size:14px;font-weight:bold;text-align:center;margin-bottom:6px;letter-spacing:1px}
+  .p-sub{font-size:11px;text-align:left;margin-bottom:6px;color:#444}
+  .p-table{width:100%;border-collapse:collapse;font-size:10px}
+  .p-table th{background:#e8e8e8;padding:4px 6px;text-align:right;border:0.5px solid #999;font-weight:bold;white-space:nowrap}
+  .p-table th:first-child{text-align:left}
+  .p-table td{padding:4px 6px;text-align:right;border:0.5px solid #999}
+  .p-table td:first-child{text-align:left}
+  .p-table tr.ps td{background:#f0f0f0;font-weight:bold}
+  .p-table tr.pt td{background:#dde4f0;font-weight:bold}
+  .p-table tr.pc td{background:#fffde7}
+  .p-red{color:#c00}
+  .p-green{color:#006600}
+  .p-layout{display:flex;gap:8mm}
+  .p-left{width:90mm;flex-shrink:0}
+  .p-right{flex:1}
+  .p-comment-box{border:0.5px solid #999;padding:6px;font-size:10px;line-height:1.8;min-height:120mm;white-space:pre-wrap;word-break:break-all}
+  .p-comment-title{font-size:11px;font-weight:bold;margin-bottom:4px;border-bottom:0.5px solid #999;padding-bottom:3px}
+  @page{size:A4 landscape;margin:8mm}
+}
+@media screen{
+  #print-area{display:none}
+  #print-btn-area{position:fixed;bottom:20px;right:20px;z-index:999}
+}
 </style>
 </head>
 <body>
@@ -63,6 +94,79 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
   <span class="badge">スクラップ業</span>
   <span id="sync-dot" class="sync-dot off" title="Firebase接続状態"></span>
 </header>
+
+<div id="print-btn-area">
+  <button class="btn primary" onclick="printReports()" style="box-shadow:0 2px 8px rgba(0,0,0,0.3)">&#128438; 3表を印刷</button>
+</div>
+
+<!-- 印刷用エリア（画面には非表示） -->
+<div id="print-area">
+  <!-- 全工場実績 -->
+  <div class="p-page">
+    <div class="p-title">全工場実績データ</div>
+    <div class="p-sub" id="p-jisseki-month"></div>
+    <table class="p-table">
+      <thead><tr>
+        <th style="text-align:left;width:140px">品目（税抜）</th>
+        <th style="width:80px">年間目標</th>
+        <th style="width:90px">年間営業利益</th>
+        <th style="width:55px">達成率%</th>
+        <th style="width:55px">増減</th>
+      </tr></thead>
+      <tbody id="p-jisseki-body"></tbody>
+    </table>
+  </div>
+  <!-- 月別達成率 -->
+  <div class="p-page">
+    <div class="p-title">月別達成率</div>
+    <div class="p-layout">
+      <div class="p-left">
+        <table class="p-table">
+          <thead><tr>
+            <th style="text-align:left;width:30px">月</th>
+            <th style="width:45px">目標%</th>
+            <th style="width:45px">差引</th>
+            <th style="width:50px">達成率%</th>
+            <th style="width:45px">増加</th>
+          </tr></thead>
+          <tbody id="p-tassei-body"></tbody>
+        </table>
+        <div style="margin-top:6mm">
+          <div class="p-comment-title">今期の予定</div>
+          <div class="p-comment-box" id="p-schedule-box" style="min-height:40mm"></div>
+        </div>
+      </div>
+      <div class="p-right">
+        <div class="p-comment-title">総合評価</div>
+        <div class="p-comment-box" id="p-comment-box" style="min-height:50mm"></div>
+        <div style="margin-top:4mm">
+          <div class="p-comment-title">今後の見通し</div>
+          <div class="p-comment-box" id="p-outlook-box" style="min-height:45mm"></div>
+        </div>
+        <div style="margin-top:4mm">
+          <div class="p-comment-title">次年度計画</div>
+          <div class="p-comment-box" id="p-nextyear-box" style="min-height:20mm"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- 品種別営業利益 -->
+  <div class="p-page">
+    <div class="p-title">品種別営業利益実績データ</div>
+    <div class="p-sub" id="p-hinmoku-month"></div>
+    <table class="p-table">
+      <thead><tr>
+        <th style="text-align:left;width:140px">品種</th>
+        <th style="width:70px">当月</th>
+        <th style="width:70px">合計</th>
+        <th style="width:80px">売上高</th>
+        <th style="width:55px">利益率%</th>
+        <th style="width:55px">構成比%</th>
+      </tr></thead>
+      <tbody id="p-hinmoku-body"></tbody>
+    </table>
+  </div>
+</div>
 
 <div class="tabs">
   <div class="tab active" onclick="showTab('input')">データ入力</div>
@@ -170,46 +274,95 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
 
   <div class="card">
     <div class="card-title">社長評価</div>
-
     <div class="step-label">ステップ1 — AI相場・市況分析コメント</div>
     <div class="row">
-      <button class="btn" id="btn-ai" onclick="genAI()">AI評価を生成（Claudeで作成後に貼付）</button>
+      <button class="btn" onclick="genAI()">AI評価を生成（Claudeで作成後に貼付）</button>
     </div>
-    <div id="ai-area">
-      <div id="ai-display" class="ai-box" style="display:none"></div>
-      <div id="ai-edit" style="display:none">
-        <textarea id="ai-text" rows="5" placeholder="Claudeが生成したAIコメントをここに貼り付けてください..."></textarea>
-        <div class="row" style="margin-top:6px">
-          <button class="btn primary" onclick="saveAI()">保存</button>
-          <button class="btn" onclick="clearAI()">クリア</button>
-        </div>
+    <div id="ai-display" class="ai-box" style="display:none"></div>
+    <div id="ai-edit" style="display:none">
+      <textarea id="ai-text" rows="4" placeholder="ClaudeのAIコメントをここに貼り付けてください..."></textarea>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" onclick="saveAI()">保存</button>
+        <button class="btn" onclick="clearAI()">クリア</button>
       </div>
-      <button id="ai-input-btn" class="btn" style="margin-top:8px" onclick="toggleAIEdit()">コメントを入力・編集</button>
     </div>
-
+    <button class="btn" style="margin-top:8px" onclick="toggleAIEdit()">コメントを入力・編集</button>
     <hr class="divider">
     <div class="step-label">ステップ2 — 社長コメント（会社の現状）</div>
-    <textarea id="president-text" rows="4" placeholder="今月の自社の状況、特記事項などを入力してください..."></textarea>
+    <textarea id="president-text" rows="3" placeholder="今月の自社の状況、特記事項などを入力してください..."></textarea>
     <div class="row" style="margin-top:6px">
-      <button class="btn primary" onclick="savePresComment()">社長コメントを保存・同期</button>
+      <button class="btn primary" onclick="savePresComment()">保存・同期</button>
       <span id="pres-msg" class="ok" style="display:none">保存しました</span>
     </div>
-
     <hr class="divider">
     <div class="step-label">ステップ3 — 総合評価（AI＋社長コメントを統合）</div>
     <div class="row">
-      <button class="btn" id="btn-final" onclick="genFinal()">総合評価を生成（Claudeで作成後に貼付）</button>
+      <button class="btn" onclick="genFinal()">総合評価を生成（Claudeで作成後に貼付）</button>
     </div>
-    <div id="final-area">
-      <div id="final-display" class="final-box" style="display:none"></div>
-      <div id="final-edit" style="display:none">
-        <textarea id="final-text" rows="6" placeholder="Claudeが生成した総合評価をここに貼り付けてください..."></textarea>
-        <div class="row" style="margin-top:6px">
-          <button class="btn primary" onclick="saveFinal()">保存・同期</button>
-          <button class="btn" onclick="clearFinal()">クリア</button>
-        </div>
+    <div id="final-display" class="final-box" style="display:none"></div>
+    <div id="final-edit" style="display:none">
+      <textarea id="final-text" rows="5" placeholder="Claudeが生成した総合評価をここに貼り付けてください..."></textarea>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" onclick="saveFinal()">保存・同期</button>
+        <button class="btn" onclick="clearFinal()">クリア</button>
       </div>
-      <button id="final-input-btn" class="btn" style="margin-top:8px" onclick="toggleFinalEdit()">総合評価を入力・編集</button>
+    </div>
+    <button class="btn" style="margin-top:8px" onclick="toggleFinalEdit()">総合評価を入力・編集</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">今後の見通し</div>
+    <div class="step-label">ステップ1 — AI相場・世界情勢分析</div>
+    <div class="row">
+      <button class="btn" onclick="genOutlookAI()">AI見通しを生成（Claudeで作成後に貼付）</button>
+    </div>
+    <div id="outlook-ai-display" class="ai-box" style="display:none"></div>
+    <div id="outlook-ai-edit" style="display:none">
+      <textarea id="outlook-ai-text" rows="4" placeholder="ClaudeのAI見通しコメントをここに貼り付けてください..."></textarea>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" onclick="saveOutlookAI()">保存</button>
+        <button class="btn" onclick="clearOutlookAI()">クリア</button>
+      </div>
+    </div>
+    <button class="btn" style="margin-top:8px" onclick="toggleOutlookAIEdit()">コメントを入力・編集</button>
+    <hr class="divider">
+    <div class="step-label">ステップ2 — 社長コメント（今後の方針・見解）</div>
+    <textarea id="outlook-pres-text" rows="3" placeholder="今後の仕入方針、販売戦略、注意点などを入力してください..."></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="btn primary" onclick="saveOutlookPres()">保存・同期</button>
+      <span id="outlook-pres-msg" class="ok" style="display:none">保存しました</span>
+    </div>
+    <hr class="divider">
+    <div class="step-label">ステップ3 — 総合見通し（AI＋社長コメントを統合）</div>
+    <div class="row">
+      <button class="btn" onclick="genOutlookFinal()">総合見通しを生成（Claudeで作成後に貼付）</button>
+    </div>
+    <div id="outlook-final-display" class="final-box" style="display:none"></div>
+    <div id="outlook-final-edit" style="display:none">
+      <textarea id="outlook-final-text" rows="5" placeholder="Claudeが生成した総合見通しをここに貼り付けてください..."></textarea>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" onclick="saveOutlookFinal()">保存・同期</button>
+        <button class="btn" onclick="clearOutlookFinal()">クリア</button>
+      </div>
+    </div>
+    <button class="btn" style="margin-top:8px" onclick="toggleOutlookFinalEdit()">総合見通しを入力・編集</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">今期の予定</div>
+    <textarea id="schedule-text" rows="4" placeholder="例：5月20日 22tダンプ車 2,500万&#10;夏 三川第1工場 倉庫建設&#10;..."></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="btn primary" onclick="saveSchedule()">保存・同期</button>
+      <span id="schedule-msg" class="ok" style="display:none">保存しました</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">次年度計画</div>
+    <textarea id="nextyear-text" rows="3" placeholder="来年度の目標・方針・計画を入力してください..."></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="btn primary" onclick="saveNextYear()">保存・同期</button>
+      <span id="nextyear-msg" class="ok" style="display:none">保存しました</span>
     </div>
   </div>
 </div>
@@ -289,6 +442,11 @@ let savedRates = {};
 let aiComment = '';
 let finalComment = '';
 let presComment = '';
+let outlookAIComment = '';
+let outlookFinalComment = '';
+let outlookPresComment = '';
+let scheduleText = '';
+let nextYearText = '';
 
 // ===== 初期化 =====
 function init() {
@@ -324,23 +482,10 @@ function initMonthSelect() {
 // ===== Firebase読込 =====
 function loadFromDB() {
   db.ref('goals').once('value').then(snap => {
-    if (snap.val()) {
-      goals = snap.val();
-      initGoalTable();
-    }
+    if (snap.val()) { goals = snap.val(); initGoalTable(); }
   });
   db.ref('savedRates').once('value').then(snap => {
     if (snap.val()) savedRates = snap.val();
-  });
-  db.ref('comments').once('value').then(snap => {
-    if (!snap.val()) return;
-    const c = snap.val();
-    if (c.ai) { aiComment = c.ai; showAIDisplay(); }
-    if (c.president) {
-      presComment = c.president;
-      document.getElementById('president-text').value = presComment;
-    }
-    if (c.final) { finalComment = c.final; showFinalDisplay(); }
   });
   db.ref('results').once('value').then(snap => {
     if (snap.val()) renderAllFromDB(snap.val());
@@ -348,12 +493,30 @@ function loadFromDB() {
   db.ref('comments').on('value', snap => {
     if (!snap.val()) return;
     const c = snap.val();
-    if (c.president && c.president !== document.getElementById('president-text').value) {
+    if (c.ai && c.ai !== aiComment) { aiComment = c.ai; showAIDisplay(); }
+    if (c.president) {
       presComment = c.president;
-      document.getElementById('president-text').value = presComment;
+      const el = document.getElementById('president-text');
+      if (el && el.value !== presComment) el.value = presComment;
     }
     if (c.final && c.final !== finalComment) { finalComment = c.final; showFinalDisplay(); }
-    if (c.ai && c.ai !== aiComment) { aiComment = c.ai; showAIDisplay(); }
+    if (c.outlookAI && c.outlookAI !== outlookAIComment) { outlookAIComment = c.outlookAI; showOutlookAIDisplay(); }
+    if (c.outlookPres) {
+      outlookPresComment = c.outlookPres;
+      const el = document.getElementById('outlook-pres-text');
+      if (el && el.value !== outlookPresComment) el.value = outlookPresComment;
+    }
+    if (c.outlookFinal && c.outlookFinal !== outlookFinalComment) { outlookFinalComment = c.outlookFinal; showOutlookFinalDisplay(); }
+    if (c.schedule) {
+      scheduleText = c.schedule;
+      const el = document.getElementById('schedule-text');
+      if (el && el.value !== scheduleText) el.value = scheduleText;
+    }
+    if (c.nextYear) {
+      nextYearText = c.nextYear;
+      const el = document.getElementById('nextyear-text');
+      if (el && el.value !== nextYearText) el.value = nextYearText;
+    }
   });
 }
 
@@ -626,17 +789,116 @@ function saveFinal() {
   showFinalDisplay();
   db.ref('comments/final').set(finalComment);
 }
-
 function clearFinal() {
   finalComment = '';
   document.getElementById('final-text').value = '';
   document.getElementById('final-display').style.display = 'none';
 }
-
 function showFinalDisplay() {
   const d = document.getElementById('final-display');
+  if (!d) return;
   d.style.display = 'block';
   d.innerHTML = finalComment.replace(/\n/g,'<br>') + `<br><button class="btn" style="margin-top:8px;font-size:11px" onclick="toggleFinalEdit()">編集</button>`;
+}
+function toggleFinalEdit() {
+  const ed = document.getElementById('final-edit');
+  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
+  if (ed.style.display === 'block' && finalComment) document.getElementById('final-text').value = finalComment;
+}
+
+// ===== 今後の見通し =====
+function genOutlookAI() {
+  const curMonth = document.getElementById('sel-month').value;
+  const prompt = `スクラップ業の${curMonth}今後の相場見通しを生成してください。以下を検索・分析してください：①東京製鉄の鉄スクラップ相場の今後2〜3ヶ月の見通し ②LME銅相場の今後の見通しとリスク要因 ③円ドル為替の今後の動向 ④米中関係・中国鉄鋼需要・世界景気など業界に影響する世界情勢の今後。200〜300字で経営者向けの見通しコメントとしてまとめてください。コメントのみを返してください。`;
+  navigator.clipboard.writeText(prompt).then(() => {
+    alert('プロンプトをコピーしました。\nClaudeの別タブに貼り付けて実行し、結果を「コメントを入力・編集」から貼り付けてください。');
+  }).catch(() => { alert('プロンプト：\n\n' + prompt); });
+  toggleOutlookAIEdit();
+}
+function toggleOutlookAIEdit() {
+  const ed = document.getElementById('outlook-ai-edit');
+  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
+  if (ed.style.display === 'block' && outlookAIComment) document.getElementById('outlook-ai-text').value = outlookAIComment;
+}
+function saveOutlookAI() {
+  const t = document.getElementById('outlook-ai-text').value.trim();
+  if (!t) return;
+  outlookAIComment = t;
+  document.getElementById('outlook-ai-edit').style.display = 'none';
+  showOutlookAIDisplay();
+  db.ref('comments/outlookAI').set(outlookAIComment);
+}
+function clearOutlookAI() {
+  outlookAIComment = '';
+  document.getElementById('outlook-ai-text').value = '';
+  document.getElementById('outlook-ai-display').style.display = 'none';
+}
+function showOutlookAIDisplay() {
+  const d = document.getElementById('outlook-ai-display');
+  if (!d) return;
+  d.style.display = 'block';
+  d.innerHTML = outlookAIComment.replace(/\n/g,'<br>') + `<br><button class="btn" style="margin-top:8px;font-size:11px" onclick="toggleOutlookAIEdit()">編集</button>`;
+}
+function saveOutlookPres() {
+  outlookPresComment = document.getElementById('outlook-pres-text').value;
+  db.ref('comments/outlookPres').set(outlookPresComment).then(() => {
+    const m = document.getElementById('outlook-pres-msg');
+    m.style.display = 'inline';
+    setTimeout(() => m.style.display = 'none', 2000);
+  });
+}
+function genOutlookFinal() {
+  const curMonth = document.getElementById('sel-month').value;
+  const pres = document.getElementById('outlook-pres-text').value.trim();
+  const prompt = `スクラップ業の${curMonth}今後の見通しを総合的にまとめてください。\n\n【AI相場・世界情勢分析】\n${outlookAIComment||'（なし）'}\n\n【社長の方針・見解】\n${pres||'（なし）'}\n\n上記2つを統合し、今後2〜3ヶ月の見通しと対応方針を250〜350字でまとめてください。経営会議資料として使える文体でお願いします。コメントのみを返してください。`;
+  navigator.clipboard.writeText(prompt).then(() => {
+    alert('プロンプトをコピーしました。\nClaudeの別タブに貼り付けて実行し、結果を「総合見通しを入力・編集」から貼り付けてください。');
+  }).catch(() => { alert('プロンプト：\n\n' + prompt); });
+  toggleOutlookFinalEdit();
+}
+function toggleOutlookFinalEdit() {
+  const ed = document.getElementById('outlook-final-edit');
+  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
+  if (ed.style.display === 'block' && outlookFinalComment) document.getElementById('outlook-final-text').value = outlookFinalComment;
+}
+function saveOutlookFinal() {
+  const t = document.getElementById('outlook-final-text').value.trim();
+  if (!t) return;
+  outlookFinalComment = t;
+  document.getElementById('outlook-final-edit').style.display = 'none';
+  showOutlookFinalDisplay();
+  db.ref('comments/outlookFinal').set(outlookFinalComment);
+}
+function clearOutlookFinal() {
+  outlookFinalComment = '';
+  document.getElementById('outlook-final-text').value = '';
+  document.getElementById('outlook-final-display').style.display = 'none';
+}
+function showOutlookFinalDisplay() {
+  const d = document.getElementById('outlook-final-display');
+  if (!d) return;
+  d.style.display = 'block';
+  d.innerHTML = outlookFinalComment.replace(/\n/g,'<br>') + `<br><button class="btn" style="margin-top:8px;font-size:11px" onclick="toggleOutlookFinalEdit()">編集</button>`;
+}
+
+// ===== 今期の予定 =====
+function saveSchedule() {
+  scheduleText = document.getElementById('schedule-text').value;
+  db.ref('comments/schedule').set(scheduleText).then(() => {
+    const m = document.getElementById('schedule-msg');
+    m.style.display = 'inline';
+    setTimeout(() => m.style.display = 'none', 2000);
+  });
+}
+
+// ===== 次年度計画 =====
+function saveNextYear() {
+  nextYearText = document.getElementById('nextyear-text').value;
+  db.ref('comments/nextYear').set(nextYearText).then(() => {
+    const m = document.getElementById('nextyear-msg');
+    m.style.display = 'inline';
+    setTimeout(() => m.style.display = 'none', 2000);
+  });
 }
 
 function showTab(name) {
@@ -646,6 +908,35 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach((btn, i) => {
     btn.classList.toggle('active', ['input','jisseki','tassei','hinmoku'][i] === name);
   });
+}
+
+function printReports() {
+  const jBody = document.getElementById('jisseki-body');
+  if (!jBody || jBody.innerHTML.includes('集計を実行')) {
+    alert('先に集計を実行してください');
+    return;
+  }
+  const curMonth = document.getElementById('sel-month')?.value || '';
+  document.getElementById('p-jisseki-month').textContent = '（' + curMonth + '）　単位：千円';
+  document.getElementById('p-hinmoku-month').textContent = '（' + curMonth + '）　単位：千円';
+
+  document.getElementById('p-jisseki-body').innerHTML = jBody.innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"').replace(/class="cur"/g,'class="pc"');
+  document.getElementById('p-tassei-body').innerHTML = document.getElementById('tassei-body').innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"').replace(/class="cur"/g,'class="pc"');
+  document.getElementById('p-hinmoku-body').innerHTML = document.getElementById('hinmoku-body').innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"');
+
+  const commentBox = document.getElementById('p-comment-box');
+  commentBox.textContent = finalComment || (aiComment ? '【AI相場分析】\n' + aiComment + '\n\n' : '') + (presComment ? '【社長コメント】\n' + presComment : '') || '（コメントなし）';
+
+  const outlookBox = document.getElementById('p-outlook-box');
+  outlookBox.textContent = outlookFinalComment || (outlookAIComment ? '【AI見通し分析】\n' + outlookAIComment + '\n\n' : '') + (outlookPresComment ? '【社長の方針】\n' + outlookPresComment : '') || '（コメントなし）';
+
+  const scheduleBox = document.getElementById('p-schedule-box');
+  scheduleBox.textContent = scheduleText || '（未入力）';
+
+  const nextyearBox = document.getElementById('p-nextyear-box');
+  nextyearBox.textContent = nextYearText || '（未入力）';
+
+  window.print();
 }
 
 init();
