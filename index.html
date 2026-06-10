@@ -1,0 +1,654 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>月次レポート集計システム</title>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Helvetica Neue',Arial,sans-serif;font-size:14px;background:#f5f5f5;color:#222}
+header{background:#1a1a2e;color:#fff;padding:14px 24px;display:flex;align-items:center;gap:12px}
+header h1{font-size:16px;font-weight:500;letter-spacing:0.5px}
+header .badge{background:#e63946;color:#fff;font-size:11px;padding:2px 8px;border-radius:10px}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:#4caf50;margin-left:auto}
+.sync-dot.off{background:#888}
+.tabs{display:flex;gap:0;background:#fff;border-bottom:1px solid #ddd;padding:0 16px}
+.tab{padding:12px 18px;cursor:pointer;font-size:13px;color:#666;border-bottom:2px solid transparent;transition:all 0.15s}
+.tab.active{color:#1a1a2e;border-bottom-color:#1a1a2e;font-weight:500}
+.content{padding:16px;max-width:1100px;margin:0 auto}
+.card{background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:16px;margin-bottom:14px}
+.card-title{font-size:13px;font-weight:500;color:#444;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.card-title .num{background:#1a1a2e;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{background:#f0f0f0;padding:6px 8px;text-align:right;border:1px solid #ddd;font-weight:500;color:#555;white-space:nowrap}
+th:first-child{text-align:left}
+td{padding:6px 8px;text-align:right;border:1px solid #ddd;color:#222}
+td:first-child{text-align:left}
+tr.sub td{background:#f7f7f7;font-weight:500}
+tr.tot td{background:#eef2ff;font-weight:600}
+tr.cur td{background:#fff8e1}
+input[type=number],input[type=text],textarea,select{border:1px solid #ccc;border-radius:4px;padding:5px 8px;font-size:13px;font-family:inherit;width:100%}
+input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 16px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;font-size:13px;font-family:inherit;transition:all 0.15s}
+.btn:hover{background:#f5f5f5}
+.btn.primary{background:#1a1a2e;color:#fff;border-color:#1a1a2e}
+.btn.primary:hover{background:#16213e}
+.btn:disabled{opacity:0.5;cursor:not-allowed}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.label{font-size:12px;color:#666;white-space:nowrap}
+.w90{width:90px}
+.w120{width:120px}
+.w160{width:160px}
+.ok{color:#2e7d32;font-size:12px}
+.err{color:#c62828;font-size:12px}
+.ai-box{background:#fafafa;border:1px solid #e0e0e0;border-radius:4px;padding:12px;font-size:13px;line-height:1.7;min-height:60px;color:#333}
+.final-box{background:#f0f4ff;border-left:3px solid #1a1a2e;padding:12px;font-size:13px;line-height:1.7;color:#333;border-radius:0 4px 4px 0}
+.step-label{font-size:12px;color:#666;margin-bottom:6px}
+.divider{border:none;border-top:1px solid #eee;margin:14px 0}
+.green{color:#2e7d32}
+.red{color:#c62828}
+.tag{font-size:11px;background:#e8eaf6;color:#3949ab;padding:2px 7px;border-radius:10px}
+.loading::after{content:'...';animation:ld 1s steps(4,end) infinite}
+@keyframes ld{0%,100%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+@media(max-width:600px){.tabs{overflow-x:auto}.tab{white-space:nowrap}.row{flex-direction:column;align-items:flex-start}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>月次レポート集計システム</h1>
+  <span class="badge">スクラップ業</span>
+  <span id="sync-dot" class="sync-dot off" title="Firebase接続状態"></span>
+</header>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('input')">データ入力</div>
+  <div class="tab" onclick="showTab('jisseki')">全工場実績</div>
+  <div class="tab" onclick="showTab('tassei')">月別達成率</div>
+  <div class="tab" onclick="showTab('hinmoku')">品種別営業利益</div>
+</div>
+
+<div class="content">
+
+<!-- ===== データ入力 ===== -->
+<div id="tab-input">
+  <div class="card">
+    <div class="card-title"><span class="num">1</span>年間目標値（千円）— 年度初めに設定</div>
+    <div style="overflow-x:auto">
+    <table id="goal-table">
+      <thead><tr><th style="text-align:left;width:180px">品種</th><th style="width:130px">年間目標（千円）</th></tr></thead>
+      <tbody id="goal-body"></tbody>
+    </table>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn primary" onclick="saveGoals()">目標値を保存・同期</button>
+      <span id="goal-msg" class="ok" style="display:none">保存・同期しました</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="num">2</span>月報データ入力（各品種の小計金額・円）</div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th style="text-align:left;width:180px">品種</th>
+        <th style="width:140px">仕入小計（円）</th>
+        <th style="width:140px">売上小計（円）</th>
+      </tr></thead>
+      <tbody id="data-body"></tbody>
+    </table>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" onclick="fillSample()">4月サンプルデータ読込</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="num">3</span>当月設定</div>
+    <div class="row">
+      <span class="label">当月</span>
+      <select id="sel-month" style="width:80px" onchange="loadMonthData()"></select>
+      <span class="label">当月目標達成率(%)</span>
+      <input type="number" id="month-target" class="w90" step="0.01" placeholder="11.50">
+      <span class="label">前月末累計達成率(%)</span>
+      <input type="number" id="prev-rate" class="w90" step="0.01" placeholder="0.00">
+      <span style="font-size:11px;color:#999">4月開始は0</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><span class="num">4</span>集計実行</div>
+    <div class="row">
+      <button class="btn primary" onclick="calculate()">3表を自動計算・保存</button>
+      <span id="calc-err" class="err"></span>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 全工場実績 ===== -->
+<div id="tab-jisseki" style="display:none">
+  <div class="card">
+    <div class="card-title" style="justify-content:space-between">
+      <span>全工場実績データ（千円）</span>
+      <span id="jisseki-month" class="tag"></span>
+    </div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th style="text-align:left;width:180px">品目（税抜）</th>
+        <th>年間目標</th>
+        <th>年間営業利益</th>
+        <th>達成率%</th>
+        <th>増減</th>
+      </tr></thead>
+      <tbody id="jisseki-body"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#999">集計を実行してください</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 月別達成率 ===== -->
+<div id="tab-tassei" style="display:none">
+  <div class="card">
+    <div class="card-title">2026年度 月別達成率</div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th style="text-align:left;width:50px">月</th>
+        <th style="width:70px">目標%</th>
+        <th style="width:70px">差引</th>
+        <th style="width:80px">達成率%</th>
+        <th style="width:70px">増加</th>
+      </tr></thead>
+      <tbody id="tassei-body"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#999">集計を実行してください</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">社長評価</div>
+
+    <div class="step-label">ステップ1 — AI相場・市況分析コメント</div>
+    <div class="row">
+      <button class="btn" id="btn-ai" onclick="genAI()">AI評価を生成（Claudeで作成後に貼付）</button>
+    </div>
+    <div id="ai-area">
+      <div id="ai-display" class="ai-box" style="display:none"></div>
+      <div id="ai-edit" style="display:none">
+        <textarea id="ai-text" rows="5" placeholder="Claudeが生成したAIコメントをここに貼り付けてください..."></textarea>
+        <div class="row" style="margin-top:6px">
+          <button class="btn primary" onclick="saveAI()">保存</button>
+          <button class="btn" onclick="clearAI()">クリア</button>
+        </div>
+      </div>
+      <button id="ai-input-btn" class="btn" style="margin-top:8px" onclick="toggleAIEdit()">コメントを入力・編集</button>
+    </div>
+
+    <hr class="divider">
+    <div class="step-label">ステップ2 — 社長コメント（会社の現状）</div>
+    <textarea id="president-text" rows="4" placeholder="今月の自社の状況、特記事項などを入力してください..."></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="btn primary" onclick="savePresComment()">社長コメントを保存・同期</button>
+      <span id="pres-msg" class="ok" style="display:none">保存しました</span>
+    </div>
+
+    <hr class="divider">
+    <div class="step-label">ステップ3 — 総合評価（AI＋社長コメントを統合）</div>
+    <div class="row">
+      <button class="btn" id="btn-final" onclick="genFinal()">総合評価を生成（Claudeで作成後に貼付）</button>
+    </div>
+    <div id="final-area">
+      <div id="final-display" class="final-box" style="display:none"></div>
+      <div id="final-edit" style="display:none">
+        <textarea id="final-text" rows="6" placeholder="Claudeが生成した総合評価をここに貼り付けてください..."></textarea>
+        <div class="row" style="margin-top:6px">
+          <button class="btn primary" onclick="saveFinal()">保存・同期</button>
+          <button class="btn" onclick="clearFinal()">クリア</button>
+        </div>
+      </div>
+      <button id="final-input-btn" class="btn" style="margin-top:8px" onclick="toggleFinalEdit()">総合評価を入力・編集</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 品種別営業利益 ===== -->
+<div id="tab-hinmoku" style="display:none">
+  <div class="card">
+    <div class="card-title" style="justify-content:space-between">
+      <span>品種別営業利益実績データ（千円）</span>
+      <span id="hinmoku-month" class="tag"></span>
+    </div>
+    <div style="overflow-x:auto">
+    <table>
+      <thead><tr>
+        <th style="text-align:left;width:180px">品種</th>
+        <th>当月</th>
+        <th>合計</th>
+        <th>売上高</th>
+        <th>利益率%</th>
+        <th>構成比%</th>
+      </tr></thead>
+      <tbody id="hinmoku-body"><tr><td colspan="6" style="text-align:center;padding:2rem;color:#999">集計を実行してください</td></tr></tbody>
+    </table>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ===== Firebase設定 =====
+const firebaseConfig = {
+  apiKey: "AIzaSyCgHzSQi6hwNo4Yke2Isb_jHLdXofP1dDA",
+  authDomain: "scrap-report-e72c8.firebaseapp.com",
+  databaseURL: "https://scrap-report-e72c8-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "scrap-report-e72c8",
+  storageBucket: "scrap-report-e72c8.firebasestorage.app",
+  messagingSenderId: "297573121722",
+  appId: "1:297573121722:web:5e7567a310c35ae8a30c83"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+db.ref('.info/connected').on('value', snap => {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot' + (snap.val() ? '' : ' off');
+});
+
+// ===== 定数 =====
+const ITEMS = [
+  {k:'kozan',l:'甲山',g:'metal'},
+  {k:'drai',l:'D粉',g:'metal'},
+  {k:'ap',l:'AP(AP＋エンジン＋その他)',g:'metal'},
+  {k:'zappin',l:'雑品',g:'metal'},
+  {k:'alumi',l:'アルミ',g:'metal'},
+  {k:'sten',l:'ステン',g:'metal'},
+  {k:'densen',l:'電線',g:'metal'},
+  {k:'do',l:'銅',g:'metal'},
+  {k:'shinchu',l:'真鍮',g:'metal'},
+  {k:'danball',l:'段ボール',g:'paper'},
+  {k:'shinbun',l:'新聞',g:'paper'},
+  {k:'zasshi',l:'雑誌',g:'paper'},
+  {k:'kaden',l:'家電リサイクル',g:'other'},
+  {k:'ippan',l:'一般廃棄物収集運搬',g:'other'},
+];
+const MONTHS = ['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
+const MONTH_TARGETS = {
+  '4月':11.50,'5月':18.90,'6月':27.50,'7月':35.80,'8月':43.80,'9月':52.00,
+  '10月':61.00,'11月':68.90,'12月':78.60,'1月':86.10,'2月':94.00,'3月':100.00
+};
+
+let goals = {};
+let shiire = {};
+let uriage = {};
+let savedRates = {};
+let aiComment = '';
+let finalComment = '';
+let presComment = '';
+
+// ===== 初期化 =====
+function init() {
+  initGoalTable();
+  initDataTable();
+  initMonthSelect();
+  loadFromDB();
+}
+
+function initGoalTable() {
+  let h = '';
+  ITEMS.forEach(it => {
+    h += `<tr><td>${it.l}</td><td><input type="number" id="g-${it.k}" style="width:110px;text-align:right" placeholder="0" value="${goals[it.k]||''}"></td></tr>`;
+  });
+  document.getElementById('goal-body').innerHTML = h;
+}
+
+function initDataTable() {
+  let h = '';
+  ITEMS.forEach(it => {
+    h += `<tr><td>${it.l}</td>
+    <td><input type="number" id="s-${it.k}" style="width:130px;text-align:right;font-size:12px" placeholder="0" value="${shiire[it.k]||''}"></td>
+    <td><input type="number" id="u-${it.k}" style="width:130px;text-align:right;font-size:12px" placeholder="0" value="${uriage[it.k]||''}"></td></tr>`;
+  });
+  document.getElementById('data-body').innerHTML = h;
+}
+
+function initMonthSelect() {
+  const s = document.getElementById('sel-month');
+  s.innerHTML = MONTHS.map(m => `<option value="${m}">${m}</option>`).join('');
+}
+
+// ===== Firebase読込 =====
+function loadFromDB() {
+  db.ref('goals').once('value').then(snap => {
+    if (snap.val()) {
+      goals = snap.val();
+      initGoalTable();
+    }
+  });
+  db.ref('savedRates').once('value').then(snap => {
+    if (snap.val()) savedRates = snap.val();
+  });
+  db.ref('comments').once('value').then(snap => {
+    if (!snap.val()) return;
+    const c = snap.val();
+    if (c.ai) { aiComment = c.ai; showAIDisplay(); }
+    if (c.president) {
+      presComment = c.president;
+      document.getElementById('president-text').value = presComment;
+    }
+    if (c.final) { finalComment = c.final; showFinalDisplay(); }
+  });
+  db.ref('results').once('value').then(snap => {
+    if (snap.val()) renderAllFromDB(snap.val());
+  });
+  db.ref('comments').on('value', snap => {
+    if (!snap.val()) return;
+    const c = snap.val();
+    if (c.president && c.president !== document.getElementById('president-text').value) {
+      presComment = c.president;
+      document.getElementById('president-text').value = presComment;
+    }
+    if (c.final && c.final !== finalComment) { finalComment = c.final; showFinalDisplay(); }
+    if (c.ai && c.ai !== aiComment) { aiComment = c.ai; showAIDisplay(); }
+  });
+}
+
+function loadMonthData() {
+  const m = document.getElementById('sel-month').value;
+  db.ref('monthInputs/' + m.replace('月','')).once('value').then(snap => {
+    if (!snap.val()) return;
+    const d = snap.val();
+    ITEMS.forEach(it => {
+      const si = document.getElementById('s-'+it.k);
+      const ui = document.getElementById('u-'+it.k);
+      if (si && d.shiire) si.value = d.shiire[it.k] || '';
+      if (ui && d.uriage) ui.value = d.uriage[it.k] || '';
+    });
+    if (d.monthTarget) document.getElementById('month-target').value = d.monthTarget;
+    if (d.prevRate !== undefined) document.getElementById('prev-rate').value = d.prevRate;
+  });
+}
+
+// ===== 目標保存 =====
+function saveGoals() {
+  ITEMS.forEach(it => {
+    const v = document.getElementById('g-'+it.k);
+    goals[it.k] = v ? parseFloat(v.value)||0 : 0;
+  });
+  db.ref('goals').set(goals).then(() => {
+    const m = document.getElementById('goal-msg');
+    m.style.display = 'inline';
+    setTimeout(() => m.style.display = 'none', 2000);
+  });
+}
+
+// ===== サンプルデータ =====
+function fillSample() {
+  const ss = {kozan:30990133,drai:7595235,ap:2009020,zappin:912862,alumi:6795969,sten:402951,densen:2996695,do:843986,shinchu:149710,danball:324200,shinbun:236127,zasshi:70376,kaden:0,ippan:0};
+  const uu = {kozan:35601172,drai:10386419,ap:1121832,zappin:3476849,alumi:13736390,sten:3803810,densen:6333250,do:2502284,shinchu:1311925,danball:6676200,shinbun:2878232,zasshi:2623190,kaden:761000,ippan:0};
+  const gg = {kozan:80000,drai:42000,ap:3000,zappin:14000,alumi:35000,sten:16000,densen:5000,do:20500,shinchu:2500,danball:71000,shinbun:28000,zasshi:23000,kaden:9000,ippan:11000};
+  ITEMS.forEach(it => {
+    const si = document.getElementById('s-'+it.k); if(si) si.value = ss[it.k]||0;
+    const ui = document.getElementById('u-'+it.k); if(ui) ui.value = uu[it.k]||0;
+    const gi = document.getElementById('g-'+it.k); if(gi) gi.value = gg[it.k]||0;
+  });
+  document.getElementById('month-target').value = 11.50;
+  document.getElementById('prev-rate').value = 0;
+}
+
+// ===== 集計 =====
+function calculate() {
+  const errEl = document.getElementById('calc-err');
+  errEl.textContent = '';
+  saveGoals();
+  ITEMS.forEach(it => {
+    shiire[it.k] = parseFloat(document.getElementById('s-'+it.k)?.value)||0;
+    uriage[it.k] = parseFloat(document.getElementById('u-'+it.k)?.value)||0;
+  });
+  if (!ITEMS.some(it => uriage[it.k] > 0)) { errEl.textContent = 'データを入力してください'; return; }
+
+  const curMonth = document.getElementById('sel-month').value;
+  const monthTarget = parseFloat(document.getElementById('month-target').value)||0;
+  const prevRate = parseFloat(document.getElementById('prev-rate').value)||0;
+
+  const rows = ITEMS.map(it => {
+    const s = shiire[it.k]||0;
+    const u = uriage[it.k]||0;
+    const profit = Math.round((u-s)/1000);
+    const goal = goals[it.k]||0;
+    const rate = goal > 0 ? Math.round(profit/goal*100) : 0;
+    const uThou = Math.round(u/1000);
+    const liRate = uThou > 0 ? Math.round(profit/uThou*100) : 0;
+    return {k:it.k,l:it.l,g:it.g,profit,goal,rate,uThou,liRate};
+  });
+
+  const totalProfit = rows.reduce((a,r) => a+r.profit, 0);
+  const totalGoal = rows.reduce((a,r) => a+r.goal, 0);
+  const totalRate = totalGoal > 0 ? parseFloat((totalProfit/totalGoal*100).toFixed(2)) : 0;
+
+  savedRates[curMonth] = totalRate;
+
+  const mIdx = MONTHS.indexOf(curMonth);
+  let inc;
+  if (mIdx === 0) {
+    inc = totalRate.toFixed(2);
+  } else {
+    const prevM = MONTHS[mIdx-1];
+    const prevActual = savedRates[prevM] !== undefined ? savedRates[prevM] : prevRate;
+    inc = (totalRate - prevActual).toFixed(2);
+  }
+
+  const resultData = {rows, totalProfit, totalGoal, totalRate, curMonth, monthTarget, prevRate, inc};
+
+  db.ref('results').set(resultData);
+  db.ref('savedRates').set(savedRates);
+  db.ref('monthInputs/'+curMonth.replace('月','')).set({
+    shiire:{...shiire}, uriage:{...uriage}, monthTarget, prevRate
+  });
+
+  renderJisseki(rows, totalProfit, totalGoal, curMonth);
+  renderTassei(curMonth, monthTarget, totalRate, parseFloat(inc));
+  renderHinmoku(rows, totalProfit, curMonth);
+  showTab('jisseki');
+}
+
+function renderAllFromDB(d) {
+  if (!d.rows) return;
+  renderJisseki(d.rows, d.totalProfit, d.totalGoal, d.curMonth);
+  renderTassei(d.curMonth, d.monthTarget, d.totalRate, parseFloat(d.inc||0));
+  renderHinmoku(d.rows, d.totalProfit, d.curMonth);
+}
+
+function renderJisseki(rows, totalProfit, totalGoal, curMonth) {
+  document.getElementById('jisseki-month').textContent = curMonth || '';
+  const metal = rows.filter(r => r.g==='metal');
+  const paper = rows.filter(r => r.g==='paper');
+  const other = rows.filter(r => r.g==='other');
+  let h = '';
+  const row = r => `<tr>
+    <td>${r.l}</td>
+    <td>${r.goal>0?r.goal.toLocaleString():'-'}</td>
+    <td>${r.profit.toLocaleString()}</td>
+    <td>${r.goal>0?r.rate:'-'}</td>
+    <td>${r.goal>0?r.rate:'-'}</td></tr>`;
+  const sub = (label, items) => {
+    const p = items.reduce((a,r)=>a+r.profit,0);
+    const g = items.reduce((a,r)=>a+r.goal,0);
+    const rt = g>0?Math.round(p/g*100):0;
+    return `<tr class="sub"><td>${label}</td><td>${g>0?g.toLocaleString():'-'}</td><td>${p.toLocaleString()}</td><td>${g>0?rt:'-'}</td><td>${g>0?rt:'-'}</td></tr>`;
+  };
+  metal.forEach(r => h += row(r));
+  h += sub('小計', metal);
+  paper.forEach(r => h += row(r));
+  h += sub('小計', paper);
+  other.forEach(r => h += row(r));
+  const totRate = totalGoal>0?Math.round(totalProfit/totalGoal*100):0;
+  h += `<tr class="tot"><td>合計</td><td>${totalGoal.toLocaleString()}</td><td>${totalProfit.toLocaleString()}</td><td>${totRate}</td><td>${totRate}</td></tr>`;
+  document.getElementById('jisseki-body').innerHTML = h;
+}
+
+function renderTassei(curMonth, monthTarget, actualRate, inc) {
+  const mIdx = MONTHS.indexOf(curMonth);
+  let h = '';
+  MONTHS.forEach((m, i) => {
+    const tgt = MONTH_TARGETS[m]||0;
+    if (i < mIdx) {
+      const stored = savedRates[m];
+      if (stored !== undefined) {
+        const prevStored = i===0 ? 0 : (savedRates[MONTHS[i-1]]||0);
+        const d = (stored - tgt).toFixed(2);
+        const ii = i===0 ? stored.toFixed(2) : (stored - prevStored).toFixed(2);
+        const cls = stored < tgt ? 'class="red"' : 'class="green"';
+        h += `<tr><td>${m}</td><td>${tgt.toFixed(2)}</td><td>${d}</td><td ${cls}>${stored.toFixed(2)}</td><td>${ii}</td></tr>`;
+      } else {
+        h += `<tr><td>${m}</td><td>${tgt.toFixed(2)}</td><td></td><td></td><td></td></tr>`;
+      }
+    } else if (i === mIdx) {
+      const diff = (actualRate - monthTarget).toFixed(2);
+      const cls = actualRate < monthTarget ? 'class="red"' : 'class="green"';
+      h += `<tr class="cur"><td>${m}</td><td>${monthTarget.toFixed(2)}</td><td>${diff}</td><td ${cls}>${actualRate.toFixed(2)}</td><td>${inc >= 0 ? '+'+inc.toFixed(2) : inc.toFixed(2)}</td></tr>`;
+    } else {
+      h += `<tr><td>${m}</td><td>${tgt.toFixed(2)}</td><td></td><td></td><td></td></tr>`;
+    }
+  });
+  document.getElementById('tassei-body').innerHTML = h;
+}
+
+function renderHinmoku(rows, totalProfit, curMonth) {
+  document.getElementById('hinmoku-month').textContent = curMonth || '';
+  const metal = rows.filter(r => r.g==='metal');
+  const paper = rows.filter(r => r.g==='paper');
+  const other = rows.filter(r => r.g==='other');
+  let h = '';
+  const row = r => {
+    const kou = totalProfit>0?(r.profit/totalProfit*100).toFixed(1):'0.0';
+    return `<tr><td>${r.l}</td><td>${r.profit.toLocaleString()}</td><td>${r.profit.toLocaleString()}</td><td>${r.uThou.toLocaleString()}</td><td>${r.liRate}</td><td>${kou}</td></tr>`;
+  };
+  const sub = (label, items) => {
+    const p = items.reduce((a,r)=>a+r.profit,0);
+    const u = items.reduce((a,r)=>a+r.uThou,0);
+    const li = u>0?Math.round(p/u*100):0;
+    const kou = totalProfit>0?(p/totalProfit*100).toFixed(1):'0.0';
+    return `<tr class="sub"><td>${label}</td><td>${p.toLocaleString()}</td><td>${p.toLocaleString()}</td><td>${u.toLocaleString()}</td><td>${li}</td><td>${kou}</td></tr>`;
+  };
+  metal.forEach(r => h += row(r));
+  h += sub('小計', metal);
+  paper.forEach(r => h += row(r));
+  h += sub('小計', paper);
+  other.forEach(r => h += row(r));
+  const tu = rows.reduce((a,r)=>a+r.uThou,0);
+  const tl = tu>0?Math.round(totalProfit/tu*100):0;
+  h += `<tr class="tot"><td>合計</td><td>${totalProfit.toLocaleString()}</td><td>${totalProfit.toLocaleString()}</td><td>${tu.toLocaleString()}</td><td>${tl}</td><td>100</td></tr>`;
+  document.getElementById('hinmoku-body').innerHTML = h;
+}
+
+// ===== AI評価 =====
+function genAI() {
+  const curMonth = document.getElementById('sel-month').value;
+  const rate = savedRates[curMonth] !== undefined ? savedRates[curMonth].toFixed(2) : '（集計後に確認）';
+  const prompt = `スクラップ業の${curMonth}月次評価コメントを生成してください。全工場達成率：${rate}%。以下を検索・分析してください：①東京製鉄の鉄スクラップ買取相場の最新動向と見通し ②LME銅相場（最新価格・トレンド・見通し） ③円ドル為替相場の動向 ④スクラップ業界に影響する世界情勢（米中関係、鉄鋼需要等）。200〜300字で経営者向け実務コメントとしてまとめてください。コメントのみを返してください。`;
+  navigator.clipboard.writeText(prompt).then(() => {
+    alert('プロンプトをコピーしました。\n\nClaudeの別タブに貼り付けて実行し、返ってきたコメントを「コメントを入力・編集」ボタンから貼り付けてください。');
+  }).catch(() => {
+    alert('以下のプロンプトをClaudeにコピーしてください：\n\n' + prompt);
+  });
+  toggleAIEdit();
+}
+
+function toggleAIEdit() {
+  const ed = document.getElementById('ai-edit');
+  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
+  if (ed.style.display === 'block' && aiComment) {
+    document.getElementById('ai-text').value = aiComment;
+  }
+}
+
+function saveAI() {
+  const t = document.getElementById('ai-text').value.trim();
+  if (!t) return;
+  aiComment = t;
+  document.getElementById('ai-edit').style.display = 'none';
+  showAIDisplay();
+  db.ref('comments/ai').set(aiComment);
+}
+
+function clearAI() {
+  aiComment = '';
+  document.getElementById('ai-text').value = '';
+  document.getElementById('ai-display').style.display = 'none';
+}
+
+function showAIDisplay() {
+  const d = document.getElementById('ai-display');
+  d.style.display = 'block';
+  d.innerHTML = aiComment.replace(/\n/g,'<br>') + `<br><button class="btn" style="margin-top:8px;font-size:11px" onclick="toggleAIEdit()">編集</button>`;
+}
+
+function savePresComment() {
+  presComment = document.getElementById('president-text').value;
+  db.ref('comments/president').set(presComment).then(() => {
+    const m = document.getElementById('pres-msg');
+    m.style.display = 'inline';
+    setTimeout(() => m.style.display = 'none', 2000);
+  });
+}
+
+function genFinal() {
+  const curMonth = document.getElementById('sel-month').value;
+  const rate = savedRates[curMonth] !== undefined ? savedRates[curMonth].toFixed(2) : '';
+  const pres = document.getElementById('president-text').value.trim();
+  const prompt = `スクラップ業の${curMonth}月次総合評価コメントを作成してください。達成率：${rate}%。\n\n【AIの相場・市況分析】\n${aiComment||'（なし）'}\n\n【社長の現状コメント】\n${pres||'（なし）'}\n\n上記2つを統合し、相場環境と自社実績を踏まえた総合評価として250〜350字でまとめてください。経営会議資料として使える文体でお願いします。コメントのみを返してください。`;
+  navigator.clipboard.writeText(prompt).then(() => {
+    alert('プロンプトをコピーしました。\n\nClaudeの別タブに貼り付けて実行し、返ってきた総合評価を「総合評価を入力・編集」ボタンから貼り付けてください。');
+  }).catch(() => {
+    alert('以下のプロンプトをClaudeにコピーしてください：\n\n' + prompt);
+  });
+  toggleFinalEdit();
+}
+
+function toggleFinalEdit() {
+  const ed = document.getElementById('final-edit');
+  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
+  if (ed.style.display === 'block' && finalComment) {
+    document.getElementById('final-text').value = finalComment;
+  }
+}
+
+function saveFinal() {
+  const t = document.getElementById('final-text').value.trim();
+  if (!t) return;
+  finalComment = t;
+  document.getElementById('final-edit').style.display = 'none';
+  showFinalDisplay();
+  db.ref('comments/final').set(finalComment);
+}
+
+function clearFinal() {
+  finalComment = '';
+  document.getElementById('final-text').value = '';
+  document.getElementById('final-display').style.display = 'none';
+}
+
+function showFinalDisplay() {
+  const d = document.getElementById('final-display');
+  d.style.display = 'block';
+  d.innerHTML = finalComment.replace(/\n/g,'<br>') + `<br><button class="btn" style="margin-top:8px;font-size:11px" onclick="toggleFinalEdit()">編集</button>`;
+}
+
+function showTab(name) {
+  ['input','jisseki','tassei','hinmoku'].forEach(t => {
+    document.getElementById('tab-'+t).style.display = t===name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.tab').forEach((btn, i) => {
+    btn.classList.toggle('active', ['input','jisseki','tassei','hinmoku'][i] === name);
+  });
+}
+
+init();
+</script>
+</body>
+</html>
