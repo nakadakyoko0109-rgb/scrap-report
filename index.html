@@ -520,8 +520,49 @@ async function extractPDFData(file, type, apiKey) {
   const base64 = await fileToBase64(file);
   const isShiire = type === 'shiire';
   const prompt = isShiire
-    ? `この仕入商品月報PDFから各品種の【小計】金額（円）を読み取りJSONのみ返してください：{"kozan":数値,"drai":数値,"ap":数値,"zappin":数値,"alumi":数値,"sten":数値,"densen":数値,"do":数値,"shinchu":数値,"danball":数値,"shinbun":数値,"zasshi":数値,"kaden":数値,"ippan":数値} 対応：甲山=kozan,ダライ粉=drai,AP=ap,雑品=zappin,アルミ=alumi,ステン=sten,電線=densen,銅=do,真鍮=shinchu,段ボール=danball,新聞=shinbun,雑誌=zasshi,家電=kaden,一般廃棄物=ippan。ない品種は0。`
-    : `この売上商品月報PDFから各品種の【小計】金額（円）を読み取りJSONのみ返してください：{"kozan":数値,"drai":数値,"ap":数値,"zappin":数値,"alumi":数値,"sten":数値,"densen":数値,"do":数値,"shinchu":数値,"danball":数値,"shinbun":数値,"zasshi":数値,"kaden":数値,"ippan":数値} 対応：甲山=kozan,ダライ粉=drai,AP=ap,雑品=zappin,アルミ=alumi,ステン=sten,電線=densen,銅=do,真鍮=shinchu,段ボール=danball,新聞=shinbun,雑誌=zasshi,家電=kaden,一般廃棄物=ippan。ない品種は0。`;
+    ? `このPDFは仕入商品月報です。以下の品種の【小計】行にある「金額」列の数値を読み取ってください。
+
+品種と対応キー：
+- 甲山 → kozan
+- ダライ粉 → drai  
+- AP → ap
+- 雑品 → zappin
+- アルミ → alumi
+- ステン → sten
+- 電線 → densen
+- 銅 → do
+- 真鍮 → shinchu
+- 段ボール → danball
+- 新聞 → shinbun
+- 雑誌 → zasshi
+- 家電 → kaden
+- 一般廃棄物 → ippan
+
+必ず以下のJSON形式だけを返してください。説明文・改行・マークダウン記号は一切不要です：
+{"kozan":30990133,"drai":7595235,"ap":2009020,"zappin":912862,"alumi":6795969,"sten":402951,"densen":2996695,"do":843986,"shinchu":149710,"danball":324200,"shinbun":236127,"zasshi":70376,"kaden":0,"ippan":0}
+上記は例です。実際のPDFの数値で返してください。該当品種がない場合は0にしてください。`
+    : `このPDFは売上商品月報です。以下の品種の【小計】行にある「金額」列の数値を読み取ってください。
+
+品種と対応キー：
+- 甲山 → kozan
+- ダライ粉 → drai
+- AP → ap
+- 雑品 → zappin
+- アルミ → alumi
+- ステン → sten
+- 電線 → densen
+- 銅 → do
+- 真鍮 → shinchu
+- 段ボール → danball
+- 新聞 → shinbun
+- 雑誌 → zasshi
+- 家電 → kaden
+- 一般廃棄物 → ippan
+
+必ず以下のJSON形式だけを返してください。説明文・改行・マークダウン記号は一切不要です：
+{"kozan":35601172,"drai":10386419,"ap":1121832,"zappin":3476849,"alumi":13736390,"sten":3803810,"densen":6333250,"do":2502284,"shinchu":1311925,"danball":6676200,"shinbun":2878232,"zasshi":2623190,"kaden":761000,"ippan":0}
+上記は例です。実際のPDFの数値で返してください。該当品種がない場合は0にしてください。`;
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
@@ -532,8 +573,11 @@ async function extractPDFData(file, type, apiKey) {
   });
   if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message||'API失敗'); }
   const data = await res.json();
-  const text = data.content.map(c=>c.text||'').join('');
-  return JSON.parse(text.replace(/```json|```/g,'').trim());
+  const text = data.content.map(c=>c.text||'').join('').trim();
+  // JSONを厳密に抽出
+  const match = text.match(/\{[^{}]+\}/s);
+  if (!match) throw new Error('JSONの読み取りに失敗しました。PDFが正しく選択されているか確認してください。');
+  return JSON.parse(match[0]);
 }
 
 function fileToBase64(file) {
