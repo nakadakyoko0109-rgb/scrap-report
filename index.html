@@ -194,7 +194,26 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
   </div>
 
   <div class="card">
-    <div class="card-title"><span class="num">2</span>月報データ入力（各品種の小計金額・円）</div>
+    <div class="card-title"><span class="num">2</span>月報PDFを読み込む（自動入力）</div>
+    <div style="background:#f0f4ff;border:1px solid #c5cae9;border-radius:4px;padding:12px;margin-bottom:12px;font-size:12px;color:#333">
+      <strong>使い方：</strong>仕入月報・売上月報のPDFを選択して「PDFを読み込んで自動入力」を押すと、各品種の金額が自動で入力されます。
+    </div>
+    <div class="row">
+      <div style="flex:1">
+        <div class="label" style="margin-bottom:4px">仕入月報PDF</div>
+        <input type="file" id="shiire-pdf" accept=".pdf" style="font-size:12px;padding:4px">
+      </div>
+      <div style="flex:1">
+        <div class="label" style="margin-bottom:4px">売上月報PDF</div>
+        <input type="file" id="uriage-pdf" accept=".pdf" style="font-size:12px;padding:4px">
+      </div>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn primary" id="btn-pdf-read" onclick="readPDFs()">📄 PDFを読み込んで自動入力</button>
+      <span id="pdf-status" style="font-size:12px;color:#666"></span>
+    </div>
+    <hr class="divider">
+    <div class="card-title" style="font-size:12px;color:#888;margin-bottom:8px">▼ 手動入力・確認・修正</div>
     <div style="overflow-x:auto">
     <table>
       <thead><tr>
@@ -214,9 +233,9 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
     <div class="card-title"><span class="num">3</span>当月設定</div>
     <div class="row">
       <span class="label">当月</span>
-      <select id="sel-month" style="width:80px" onchange="loadMonthData()"></select>
+      <select id="sel-month" style="width:80px" onchange="onMonthChange()"></select>
       <span class="label">当月目標達成率(%)</span>
-      <input type="number" id="month-target" class="w90" step="0.01" placeholder="11.50">
+      <input type="number" id="month-target" class="w90" step="0.01" placeholder="11.50" readonly style="background:#f5f5f5">
       <span class="label">前月末累計達成率(%)</span>
       <input type="number" id="prev-rate" class="w90" step="0.01" placeholder="0.00">
       <span style="font-size:11px;color:#999">4月開始は0</span>
@@ -229,6 +248,16 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
       <button class="btn primary" onclick="calculate()">3表を自動計算・保存</button>
       <span id="calc-err" class="err"></span>
     </div>
+  </div>
+
+  <div class="card" style="border-color:#ffcc80">
+    <div class="card-title">⚙️ Claude APIキー設定（PDF自動読み取りに必要）</div>
+    <div class="row">
+      <input type="password" id="api-key-input" placeholder="sk-ant-api03-..." style="flex:1;font-size:12px">
+      <button class="btn" onclick="saveApiKey()">保存</button>
+      <span id="api-key-msg" class="ok" style="display:none">保存しました（このブラウザのみ）</span>
+    </div>
+    <div style="font-size:11px;color:#999;margin-top:4px">※ APIキーはこのブラウザにのみ保存されます。他の人には共有されません。</div>
   </div>
 </div>
 
@@ -370,21 +399,13 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
 <!-- ===== 品種別営業利益 ===== -->
 <div id="tab-hinmoku" style="display:none">
   <div class="card">
-    <div class="card-title" style="justify-content:space-between">
-      <span>品種別営業利益実績データ（千円）</span>
-      <span id="hinmoku-month" class="tag"></span>
-    </div>
+    <div class="card-title">品種別営業利益実績データ（千円）</div>
     <div style="overflow-x:auto">
-    <table>
-      <thead><tr>
-        <th style="text-align:left;width:180px">品種</th>
-        <th>当月</th>
-        <th>合計</th>
-        <th>売上高</th>
-        <th>利益率%</th>
-        <th>構成比%</th>
-      </tr></thead>
-      <tbody id="hinmoku-body"><tr><td colspan="6" style="text-align:center;padding:2rem;color:#999">集計を実行してください</td></tr></tbody>
+    <table id="hinmoku-tbl" style="min-width:1200px">
+      <thead>
+        <tr id="hinmoku-head"></tr>
+      </thead>
+      <tbody id="hinmoku-body"><tr><td colspan="17" style="text-align:center;padding:2rem;color:#999">集計を実行してください</td></tr></tbody>
     </table>
     </div>
   </div>
@@ -449,7 +470,87 @@ let scheduleText = '';
 let nextYearText = '';
 
 // ===== 初期化 =====
+// ===== APIキー管理 =====
+function saveApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) return;
+  localStorage.setItem('claude_api_key', key);
+  document.getElementById('api-key-input').value = '';
+  const m = document.getElementById('api-key-msg');
+  m.style.display = 'inline';
+  setTimeout(() => m.style.display = 'none', 2000);
+}
+function getApiKey() {
+  return localStorage.getItem('claude_api_key') || '';
+}
+
+// ===== PDF読み取り =====
+async function readPDFs() {
+  const apiKey = getApiKey();
+  if (!apiKey) { alert('先にAPIキーを設定してください（画面下部の設定欄）'); return; }
+  const shiireFile = document.getElementById('shiire-pdf').files[0];
+  const uriageFile = document.getElementById('uriage-pdf').files[0];
+  if (!shiireFile && !uriageFile) { alert('PDFを選択してください'); return; }
+  const btn = document.getElementById('btn-pdf-read');
+  const status = document.getElementById('pdf-status');
+  btn.disabled = true;
+  status.textContent = 'PDFを読み取り中...';
+  status.className = '';
+  try {
+    if (shiireFile) {
+      status.textContent = '仕入月報を読み取り中...';
+      const d = await extractPDFData(shiireFile, 'shiire', apiKey);
+      ITEMS.forEach(it => { if (d[it.k] !== undefined) { const el = document.getElementById('s-'+it.k); if(el) el.value = d[it.k]; }});
+    }
+    if (uriageFile) {
+      status.textContent = '売上月報を読み取り中...';
+      const d = await extractPDFData(uriageFile, 'uriage', apiKey);
+      ITEMS.forEach(it => { if (d[it.k] !== undefined) { const el = document.getElementById('u-'+it.k); if(el) el.value = d[it.k]; }});
+    }
+    status.className = 'ok';
+    status.textContent = '✓ 読み取り完了！内容を確認して集計を実行してください';
+  } catch(e) {
+    status.className = 'err';
+    status.textContent = 'エラー: ' + e.message;
+  }
+  btn.disabled = false;
+}
+
+async function extractPDFData(file, type, apiKey) {
+  const base64 = await fileToBase64(file);
+  const isShiire = type === 'shiire';
+  const prompt = isShiire
+    ? `この仕入商品月報PDFから各品種の【小計】金額（円）を読み取りJSONのみ返してください：{"kozan":数値,"drai":数値,"ap":数値,"zappin":数値,"alumi":数値,"sten":数値,"densen":数値,"do":数値,"shinchu":数値,"danball":数値,"shinbun":数値,"zasshi":数値,"kaden":数値,"ippan":数値} 対応：甲山=kozan,ダライ粉=drai,AP=ap,雑品=zappin,アルミ=alumi,ステン=sten,電線=densen,銅=do,真鍮=shinchu,段ボール=danball,新聞=shinbun,雑誌=zasshi,家電=kaden,一般廃棄物=ippan。ない品種は0。`
+    : `この売上商品月報PDFから各品種の【小計】金額（円）を読み取りJSONのみ返してください：{"kozan":数値,"drai":数値,"ap":数値,"zappin":数値,"alumi":数値,"sten":数値,"densen":数値,"do":数値,"shinchu":数値,"danball":数値,"shinbun":数値,"zasshi":数値,"kaden":数値,"ippan":数値} 対応：甲山=kozan,ダライ粉=drai,AP=ap,雑品=zappin,アルミ=alumi,ステン=sten,電線=densen,銅=do,真鍮=shinchu,段ボール=danball,新聞=shinbun,雑誌=zasshi,家電=kaden,一般廃棄物=ippan。ない品種は0。`;
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
+    body: JSON.stringify({model:'claude-sonnet-4-6',max_tokens:1000,messages:[{role:'user',content:[
+      {type:'document',source:{type:'base64',media_type:'application/pdf',data:base64}},
+      {type:'text',text:prompt}
+    ]}]})
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message||'API失敗'); }
+  const data = await res.json();
+  const text = data.content.map(c=>c.text||'').join('');
+  return JSON.parse(text.replace(/```json|```/g,'').trim());
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve,reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(',')[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
 function init() {
+  const savedKey = localStorage.getItem('claude_api_key');
+  if (savedKey) {
+    const el = document.getElementById('api-key-msg');
+    if(el){ el.textContent='APIキー設定済み'; el.style.display='inline'; }
+  }
   initGoalTable();
   initDataTable();
   initMonthSelect();
@@ -477,6 +578,14 @@ function initDataTable() {
 function initMonthSelect() {
   const s = document.getElementById('sel-month');
   s.innerHTML = MONTHS.map(m => `<option value="${m}">${m}</option>`).join('');
+  onMonthChange();
+}
+
+function onMonthChange() {
+  const m = document.getElementById('sel-month').value;
+  const tgt = MONTH_TARGETS[m] || 0;
+  document.getElementById('month-target').value = tgt.toFixed(2);
+  loadMonthData();
 }
 
 // ===== Firebase読込 =====
@@ -489,6 +598,9 @@ function loadFromDB() {
   });
   db.ref('results').once('value').then(snap => {
     if (snap.val()) renderAllFromDB(snap.val());
+  });
+  db.ref('monthlyRows').once('value').then(snap => {
+    if (snap.val()) window.savedMonthlyRows = snap.val();
   });
   db.ref('comments').on('value', snap => {
     if (!snap.val()) return;
@@ -612,6 +724,10 @@ function calculate() {
   db.ref('monthInputs/'+curMonth.replace('月','')).set({
     shiire:{...shiire}, uriage:{...uriage}, monthTarget, prevRate
   });
+  // 月別品種データ保存（品種別営業利益の12ヶ月表示用）
+  window.savedMonthlyRows = window.savedMonthlyRows || {};
+  window.savedMonthlyRows[curMonth] = rows.map(r=>({k:r.k,profit:r.profit,uThou:r.uThou}));
+  db.ref('monthlyRows/'+curMonth).set(window.savedMonthlyRows[curMonth]);
 
   renderJisseki(rows, totalProfit, totalGoal, curMonth);
   renderTassei(curMonth, monthTarget, totalRate, parseFloat(inc));
@@ -682,30 +798,95 @@ function renderTassei(curMonth, monthTarget, actualRate, inc) {
 }
 
 function renderHinmoku(rows, totalProfit, curMonth) {
-  document.getElementById('hinmoku-month').textContent = curMonth || '';
+  // ヘッダー生成（品種 | 4月〜3月 | 合計 | 売上高 | 利益率 | 構成比）
+  const head = document.getElementById('hinmoku-head');
+  if (head) {
+    let hh = '<th style="text-align:left;min-width:140px">品種</th>';
+    MONTHS.forEach(m => { hh += `<th style="min-width:60px;font-size:11px">${m}</th>`; });
+    hh += '<th>合計</th><th>売上高</th><th>利益率%</th><th>構成比%</th>';
+    head.innerHTML = hh;
+  }
+
+  const mIdx = curMonth ? MONTHS.indexOf(curMonth) : -1;
   const metal = rows.filter(r => r.g==='metal');
   const paper = rows.filter(r => r.g==='paper');
   const other = rows.filter(r => r.g==='other');
   let h = '';
-  const row = r => {
-    const kou = totalProfit>0?(r.profit/totalProfit*100).toFixed(1):'0.0';
-    return `<tr><td>${r.l}</td><td>${r.profit.toLocaleString()}</td><td>${r.profit.toLocaleString()}</td><td>${r.uThou.toLocaleString()}</td><td>${r.liRate}</td><td>${kou}</td></tr>`;
+
+  const monthlyData = {}; // key: itemKey, value: {month: profit}
+  // 現在月のデータをセット
+  rows.forEach(r => {
+    monthlyData[r.k] = monthlyData[r.k] || {};
+    if (curMonth) monthlyData[r.k][curMonth] = r.profit;
+  });
+  // Firebase から過去月データ読込済みの場合（savedMonthlyRows）
+  if (window.savedMonthlyRows) {
+    Object.keys(window.savedMonthlyRows).forEach(month => {
+      const mRows = window.savedMonthlyRows[month];
+      if (mRows) mRows.forEach(r => {
+        monthlyData[r.k] = monthlyData[r.k] || {};
+        monthlyData[r.k][month] = r.profit;
+      });
+    });
+  }
+
+  const rowHtml = (r) => {
+    let cells = '';
+    let total = 0;
+    let totalU = 0;
+    MONTHS.forEach((m, i) => {
+      const v = monthlyData[r.k]?.[m];
+      const highlight = m === curMonth ? 'background:#fff8e1' : '';
+      if (v !== undefined) { cells += `<td style="${highlight}">${v.toLocaleString()}</td>`; total += v; }
+      else { cells += `<td style="${highlight};color:#ccc">-</td>`; }
+    });
+    // 売上高合計
+    if (window.savedMonthlyRows) {
+      Object.keys(window.savedMonthlyRows).forEach(month => {
+        const mRows = window.savedMonthlyRows[month];
+        if (mRows) { const mr = mRows.find(x=>x.k===r.k); if(mr) totalU += mr.uThou||0; }
+      });
+    }
+    if (curMonth) { const cr = rows.find(x=>x.k===r.k); if(cr) totalU += cr.uThou||0; }
+    const liRate = totalU > 0 ? Math.round(total/totalU*100) : 0;
+    const kousei = totalProfit > 0 ? (r.profit/totalProfit*100).toFixed(1) : '0.0';
+    return `<tr><td>${r.l}</td>${cells}<td><strong>${total.toLocaleString()}</strong></td><td>${totalU.toLocaleString()}</td><td>${liRate}</td><td>${kousei}</td></tr>`;
   };
-  const sub = (label, items) => {
+
+  const subHtml = (label, items) => {
+    let cells = '';
+    let grandTotal = 0;
+    MONTHS.forEach(m => {
+      const v = items.reduce((a,r) => a + (monthlyData[r.k]?.[m] || 0), 0);
+      const hasData = items.some(r => monthlyData[r.k]?.[m] !== undefined);
+      const highlight = m === curMonth ? 'background:#f0f0f0' : '';
+      cells += hasData ? `<td style="${highlight}"><strong>${v.toLocaleString()}</strong></td>` : `<td style="${highlight};color:#ccc">-</td>`;
+      grandTotal += v;
+    });
     const p = items.reduce((a,r)=>a+r.profit,0);
-    const u = items.reduce((a,r)=>a+r.uThou,0);
+    const u = items.reduce((a,r)=>a+(r.uThou||0),0);
     const li = u>0?Math.round(p/u*100):0;
     const kou = totalProfit>0?(p/totalProfit*100).toFixed(1):'0.0';
-    return `<tr class="sub"><td>${label}</td><td>${p.toLocaleString()}</td><td>${p.toLocaleString()}</td><td>${u.toLocaleString()}</td><td>${li}</td><td>${kou}</td></tr>`;
+    return `<tr class="sub"><td>${label}</td>${cells}<td><strong>${grandTotal.toLocaleString()}</strong></td><td>${u.toLocaleString()}</td><td>${li}</td><td>${kou}</td></tr>`;
   };
-  metal.forEach(r => h += row(r));
-  h += sub('小計', metal);
-  paper.forEach(r => h += row(r));
-  h += sub('小計', paper);
-  other.forEach(r => h += row(r));
-  const tu = rows.reduce((a,r)=>a+r.uThou,0);
-  const tl = tu>0?Math.round(totalProfit/tu*100):0;
-  h += `<tr class="tot"><td>合計</td><td>${totalProfit.toLocaleString()}</td><td>${totalProfit.toLocaleString()}</td><td>${tu.toLocaleString()}</td><td>${tl}</td><td>100</td></tr>`;
+
+  metal.forEach(r => h += rowHtml(r));
+  h += subHtml('小計', metal);
+  paper.forEach(r => h += rowHtml(r));
+  h += subHtml('小計', paper);
+  other.forEach(r => h += rowHtml(r));
+
+  const allTotal = rows.reduce((a,r)=>a+r.profit,0);
+  const allU = rows.reduce((a,r)=>a+(r.uThou||0),0);
+  const allLi = allU>0?Math.round(allTotal/allU*100):0;
+  let totalCells = '';
+  MONTHS.forEach(m => {
+    const v = rows.reduce((a,r)=>a+(monthlyData[r.k]?.[m]||0),0);
+    const hasData = rows.some(r=>monthlyData[r.k]?.[m]!==undefined);
+    const highlight = m===curMonth?'background:#e8eaf6':'';
+    totalCells += hasData?`<td style="${highlight}"><strong>${v.toLocaleString()}</strong></td>`:`<td style="${highlight};color:#ccc">-</td>`;
+  });
+  h += `<tr class="tot"><td>合計</td>${totalCells}<td><strong>${allTotal.toLocaleString()}</strong></td><td>${allU.toLocaleString()}</td><td>${allLi}</td><td>100</td></tr>`;
   document.getElementById('hinmoku-body').innerHTML = h;
 }
 
@@ -713,9 +894,21 @@ function renderHinmoku(rows, totalProfit, curMonth) {
 function genAI() {
   const curMonth = document.getElementById('sel-month').value;
   const rate = savedRates[curMonth] !== undefined ? savedRates[curMonth].toFixed(2) : '（集計後に確認）';
-  const prompt = `スクラップ業の${curMonth}月次評価コメントを生成してください。全工場達成率：${rate}%。以下を検索・分析してください：①東京製鉄の鉄スクラップ買取相場の最新動向と見通し ②LME銅相場（最新価格・トレンド・見通し） ③円ドル為替相場の動向 ④スクラップ業界に影響する世界情勢（米中関係、鉄鋼需要等）。200〜300字で経営者向け実務コメントとしてまとめてください。コメントのみを返してください。`;
+  const prompt = `スクラップ業の${curMonth}の月次評価コメントを作成してください。全工場達成率：${rate}%。
+
+以下の情報を検索・分析してください：
+①東京製鉄の鉄スクラップ買取相場の最新動向
+②LME銅相場の最新価格と動き
+③円ドル為替相場の動向
+④スクラップ業界に影響する世界情勢（米中関係・鉄鋼需要など）
+
+【重要】文章は20代〜50代の現場スタッフにも分かりやすい言葉で書いてください。
+・難しい専門用語は使わず、シンプルな言葉で説明する
+・「相場が上がった・下がった」「円安で仕入れが有利・不利」など具体的に書く
+・200〜300字でまとめる
+・コメントのみ返してください（前置き不要）`;
   navigator.clipboard.writeText(prompt).then(() => {
-    alert('プロンプトをコピーしました。\n\nClaudeの別タブに貼り付けて実行し、返ってきたコメントを「コメントを入力・編集」ボタンから貼り付けてください。');
+    alert('プロンプトをコピーしました。\nClaudeの別タブに貼り付けて実行し、返ってきたコメントを「コメントを入力・編集」ボタンから貼り付けてください。');
   }).catch(() => {
     alert('以下のプロンプトをClaudeにコピーしてください：\n\n' + prompt);
   });
@@ -753,11 +946,24 @@ function showAIDisplay() {
 
 function savePresComment() {
   presComment = document.getElementById('president-text').value;
-  db.ref('comments/president').set(presComment).then(() => {
-    const m = document.getElementById('pres-msg');
-    m.style.display = 'inline';
-    setTimeout(() => m.style.display = 'none', 2000);
-  });
+  const m = document.getElementById('pres-msg');
+  const saveWithRetry = (retries) => {
+    db.ref('comments/president').set(presComment).then(() => {
+      m.textContent = '保存しました';
+      m.className = 'ok';
+      m.style.display = 'inline';
+      setTimeout(() => m.style.display = 'none', 2000);
+    }).catch(err => {
+      if (retries > 0) {
+        setTimeout(() => saveWithRetry(retries - 1), 1000);
+      } else {
+        m.textContent = '保存失敗。再度お試しください';
+        m.className = 'err';
+        m.style.display = 'inline';
+      }
+    });
+  };
+  saveWithRetry(3);
 }
 
 function genFinal() {
@@ -841,10 +1047,12 @@ function showOutlookAIDisplay() {
 }
 function saveOutlookPres() {
   outlookPresComment = document.getElementById('outlook-pres-text').value;
+  const m = document.getElementById('outlook-pres-msg');
   db.ref('comments/outlookPres').set(outlookPresComment).then(() => {
-    const m = document.getElementById('outlook-pres-msg');
-    m.style.display = 'inline';
-    setTimeout(() => m.style.display = 'none', 2000);
+    m.textContent='保存しました'; m.className='ok'; m.style.display='inline';
+    setTimeout(()=>m.style.display='none',2000);
+  }).catch(()=>{ m.textContent='保存失敗。再試行...'; m.className='err'; m.style.display='inline';
+    setTimeout(()=>db.ref('comments/outlookPres').set(outlookPresComment).then(()=>{m.textContent='保存しました';m.className='ok';setTimeout(()=>m.style.display='none',2000);}),1500);
   });
 }
 function genOutlookFinal() {
@@ -884,20 +1092,24 @@ function showOutlookFinalDisplay() {
 // ===== 今期の予定 =====
 function saveSchedule() {
   scheduleText = document.getElementById('schedule-text').value;
+  const m = document.getElementById('schedule-msg');
   db.ref('comments/schedule').set(scheduleText).then(() => {
-    const m = document.getElementById('schedule-msg');
-    m.style.display = 'inline';
-    setTimeout(() => m.style.display = 'none', 2000);
+    m.textContent='保存しました'; m.className='ok'; m.style.display='inline';
+    setTimeout(()=>m.style.display='none',2000);
+  }).catch(()=>{ m.textContent='保存失敗。再試行...'; m.className='err'; m.style.display='inline';
+    setTimeout(()=>db.ref('comments/schedule').set(scheduleText).then(()=>{m.textContent='保存しました';m.className='ok';setTimeout(()=>m.style.display='none',2000);}),1500);
   });
 }
 
 // ===== 次年度計画 =====
 function saveNextYear() {
   nextYearText = document.getElementById('nextyear-text').value;
+  const m = document.getElementById('nextyear-msg');
   db.ref('comments/nextYear').set(nextYearText).then(() => {
-    const m = document.getElementById('nextyear-msg');
-    m.style.display = 'inline';
-    setTimeout(() => m.style.display = 'none', 2000);
+    m.textContent='保存しました'; m.className='ok'; m.style.display='inline';
+    setTimeout(()=>m.style.display='none',2000);
+  }).catch(()=>{ m.textContent='保存失敗。再試行...'; m.className='err'; m.style.display='inline';
+    setTimeout(()=>db.ref('comments/nextYear').set(nextYearText).then(()=>{m.textContent='保存しました';m.className='ok';setTimeout(()=>m.style.display='none',2000);}),1500);
   });
 }
 
