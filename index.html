@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -51,7 +50,7 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
 .green{color:#2e7d32}
 .red{color:#c62828}
 .tag{font-size:11px;background:#e8eaf6;color:#3949ab;padding:2px 7px;border-radius:10px}
-.loading::after{content:'...';animation:ld 1s steps(4,end) infinite}
+.loading-dots::after{content:'';animation:ld 1s steps(4,end) infinite}
 @keyframes ld{0%,100%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
 @media(max-width:600px){.tabs{overflow-x:auto}.tab{white-space:nowrap}.row{flex-direction:column;align-items:flex-start}}
 
@@ -154,17 +153,12 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
   <div class="p-page">
     <div class="p-title">品種別営業利益実績データ</div>
     <div class="p-sub" id="p-hinmoku-month"></div>
-    <table class="p-table">
-      <thead><tr>
-        <th style="text-align:left;width:140px">品種</th>
-        <th style="width:70px">当月</th>
-        <th style="width:70px">合計</th>
-        <th style="width:80px">売上高</th>
-        <th style="width:55px">利益率%</th>
-        <th style="width:55px">構成比%</th>
-      </tr></thead>
+    <div style="overflow-x:auto">
+    <table class="p-table" style="min-width:900px;font-size:8px" id="p-hinmoku-tbl">
+      <thead><tr id="p-hinmoku-head"></tr></thead>
       <tbody id="p-hinmoku-body"></tbody>
     </table>
+    </div>
   </div>
 </div>
 
@@ -303,19 +297,12 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
 
   <div class="card">
     <div class="card-title">社長評価</div>
-    <div class="step-label">ステップ1 — AI相場・市況分析コメント</div>
-    <div class="row">
-      <button class="btn" onclick="genAI()">AI評価を生成（Claudeで作成後に貼付）</button>
-    </div>
-    <div id="ai-display" class="ai-box" style="display:none"></div>
-    <div id="ai-edit" style="display:none">
-      <textarea id="ai-text" rows="4" placeholder="ClaudeのAIコメントをここに貼り付けてください..."></textarea>
-      <div class="row" style="margin-top:6px">
-        <button class="btn primary" onclick="saveAI()">保存</button>
-        <button class="btn" onclick="clearAI()">クリア</button>
-      </div>
-    </div>
-    <button class="btn" style="margin-top:8px" onclick="toggleAIEdit()">コメントを入力・編集</button>
+
+    <div class="step-label">ステップ1 — AI相場・市況分析</div>
+    <button class="btn" id="btn-ai-gen" onclick="genAI()">⚡ AI評価を自動生成</button>
+    <div id="ai-display" class="ai-box" style="display:none;margin-top:8px"></div>
+    <div id="ai-loading" style="display:none;margin-top:8px;font-size:13px;color:#666">相場情報を分析中<span class="loading-dots"></span></div>
+
     <hr class="divider">
     <div class="step-label">ステップ2 — 社長コメント（会社の現状）</div>
     <textarea id="president-text" rows="3" placeholder="今月の自社の状況、特記事項などを入力してください..."></textarea>
@@ -323,37 +310,22 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
       <button class="btn primary" onclick="savePresComment()">保存・同期</button>
       <span id="pres-msg" class="ok" style="display:none">保存しました</span>
     </div>
+
     <hr class="divider">
-    <div class="step-label">ステップ3 — 総合評価（AI＋社長コメントを統合）</div>
-    <div class="row">
-      <button class="btn" onclick="genFinal()">総合評価を生成（Claudeで作成後に貼付）</button>
-    </div>
-    <div id="final-display" class="final-box" style="display:none"></div>
-    <div id="final-edit" style="display:none">
-      <textarea id="final-text" rows="5" placeholder="Claudeが生成した総合評価をここに貼り付けてください..."></textarea>
-      <div class="row" style="margin-top:6px">
-        <button class="btn primary" onclick="saveFinal()">保存・同期</button>
-        <button class="btn" onclick="clearFinal()">クリア</button>
-      </div>
-    </div>
-    <button class="btn" style="margin-top:8px" onclick="toggleFinalEdit()">総合評価を入力・編集</button>
+    <div class="step-label">ステップ3 — 総合評価（AI＋社長コメントを自動統合）</div>
+    <button class="btn" id="btn-final-gen" onclick="genFinal()">⚡ 総合評価を自動生成</button>
+    <div id="final-display" class="final-box" style="display:none;margin-top:8px"></div>
+    <div id="final-loading" style="display:none;margin-top:8px;font-size:13px;color:#666">総合評価を生成中<span class="loading-dots"></span></div>
   </div>
 
   <div class="card">
     <div class="card-title">今後の見通し</div>
+
     <div class="step-label">ステップ1 — AI相場・世界情勢分析</div>
-    <div class="row">
-      <button class="btn" onclick="genOutlookAI()">AI見通しを生成（Claudeで作成後に貼付）</button>
-    </div>
-    <div id="outlook-ai-display" class="ai-box" style="display:none"></div>
-    <div id="outlook-ai-edit" style="display:none">
-      <textarea id="outlook-ai-text" rows="4" placeholder="ClaudeのAI見通しコメントをここに貼り付けてください..."></textarea>
-      <div class="row" style="margin-top:6px">
-        <button class="btn primary" onclick="saveOutlookAI()">保存</button>
-        <button class="btn" onclick="clearOutlookAI()">クリア</button>
-      </div>
-    </div>
-    <button class="btn" style="margin-top:8px" onclick="toggleOutlookAIEdit()">コメントを入力・編集</button>
+    <button class="btn" id="btn-outlook-ai-gen" onclick="genOutlookAI()">⚡ AI見通しを自動生成</button>
+    <div id="outlook-ai-display" class="ai-box" style="display:none;margin-top:8px"></div>
+    <div id="outlook-ai-loading" style="display:none;margin-top:8px;font-size:13px;color:#666">相場・世界情勢を分析中<span class="loading-dots"></span></div>
+
     <hr class="divider">
     <div class="step-label">ステップ2 — 社長コメント（今後の方針・見解）</div>
     <textarea id="outlook-pres-text" rows="3" placeholder="今後の仕入方針、販売戦略、注意点などを入力してください..."></textarea>
@@ -361,20 +333,12 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
       <button class="btn primary" onclick="saveOutlookPres()">保存・同期</button>
       <span id="outlook-pres-msg" class="ok" style="display:none">保存しました</span>
     </div>
+
     <hr class="divider">
-    <div class="step-label">ステップ3 — 総合見通し（AI＋社長コメントを統合）</div>
-    <div class="row">
-      <button class="btn" onclick="genOutlookFinal()">総合見通しを生成（Claudeで作成後に貼付）</button>
-    </div>
-    <div id="outlook-final-display" class="final-box" style="display:none"></div>
-    <div id="outlook-final-edit" style="display:none">
-      <textarea id="outlook-final-text" rows="5" placeholder="Claudeが生成した総合見通しをここに貼り付けてください..."></textarea>
-      <div class="row" style="margin-top:6px">
-        <button class="btn primary" onclick="saveOutlookFinal()">保存・同期</button>
-        <button class="btn" onclick="clearOutlookFinal()">クリア</button>
-      </div>
-    </div>
-    <button class="btn" style="margin-top:8px" onclick="toggleOutlookFinalEdit()">総合見通しを入力・編集</button>
+    <div class="step-label">ステップ3 — 総合見通し（AI＋社長コメントを自動統合）</div>
+    <button class="btn" id="btn-outlook-final-gen" onclick="genOutlookFinal()">⚡ 総合見通しを自動生成</button>
+    <div id="outlook-final-display" class="final-box" style="display:none;margin-top:8px"></div>
+    <div id="outlook-final-loading" style="display:none;margin-top:8px;font-size:13px;color:#666">総合見通しを生成中<span class="loading-dots"></span></div>
   </div>
 
   <div class="card">
@@ -524,8 +488,8 @@ async function extractPDFData(file, type, apiKey) {
 
 品種と対応キー：
 - 甲山 → kozan
-- ダライ粉 → drai  
-- AP → ap
+- ダライ粉 → drai
+- AP → ap ※【小計：AP】と【小計：エンジン】の金額を足した合計値を入れてください
 - 雑品 → zappin
 - アルミ → alumi
 - ステン → sten
@@ -539,14 +503,14 @@ async function extractPDFData(file, type, apiKey) {
 - 一般廃棄物 → ippan
 
 必ず以下のJSON形式だけを返してください。説明文・改行・マークダウン記号は一切不要です：
-{"kozan":30990133,"drai":7595235,"ap":2009020,"zappin":912862,"alumi":6795969,"sten":402951,"densen":2996695,"do":843986,"shinchu":149710,"danball":324200,"shinbun":236127,"zasshi":70376,"kaden":0,"ippan":0}
-上記は例です。実際のPDFの数値で返してください。該当品種がない場合は0にしてください。`
+{"kozan":30990133,"drai":7595235,"ap":2011420,"zappin":912862,"alumi":6795969,"sten":402951,"densen":2996695,"do":843986,"shinchu":149710,"danball":324200,"shinbun":236127,"zasshi":70376,"kaden":0,"ippan":0}
+上記は例です（apはAP小計＋エンジン小計の合計）。実際のPDFの数値で返してください。該当品種がない場合は0にしてください。`
     : `このPDFは売上商品月報です。以下の品種の【小計】行にある「金額」列の数値を読み取ってください。
 
 品種と対応キー：
 - 甲山 → kozan
 - ダライ粉 → drai
-- AP → ap
+- AP → ap ※【小計：AP】と【小計：エンジン】の金額を足した合計値を入れてください
 - 雑品 → zappin
 - アルミ → alumi
 - ステン → sten
@@ -560,8 +524,8 @@ async function extractPDFData(file, type, apiKey) {
 - 一般廃棄物 → ippan
 
 必ず以下のJSON形式だけを返してください。説明文・改行・マークダウン記号は一切不要です：
-{"kozan":35601172,"drai":10386419,"ap":1121832,"zappin":3476849,"alumi":13736390,"sten":3803810,"densen":6333250,"do":2502284,"shinchu":1311925,"danball":6676200,"shinbun":2878232,"zasshi":2623190,"kaden":761000,"ippan":0}
-上記は例です。実際のPDFの数値で返してください。該当品種がない場合は0にしてください。`;
+{"kozan":35601172,"drai":10386419,"ap":3224882,"zappin":3476849,"alumi":13736390,"sten":3803810,"densen":6333250,"do":2502284,"shinchu":1311925,"danball":6676200,"shinbun":2878232,"zasshi":2623190,"kaden":761000,"ippan":0}
+上記は例です（apはAP小計＋エンジン小計の合計）。実際のPDFの数値で返してください。該当品種がない場合は0にしてください。`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -649,20 +613,30 @@ function loadFromDB() {
   db.ref('comments').on('value', snap => {
     if (!snap.val()) return;
     const c = snap.val();
-    if (c.ai && c.ai !== aiComment) { aiComment = c.ai; showAIDisplay(); }
+    if (c.ai && c.ai !== aiComment) { aiComment = c.ai; showComment("ai-display", aiComment, "editComment(\"ai\")"); }
     if (c.president) {
       presComment = c.president;
       const el = document.getElementById('president-text');
       if (el && el.value !== presComment) el.value = presComment;
+      // ローカルバックアップも更新
+      try { localStorage.setItem('backup_presComment', presComment); } catch(e) {}
+    } else {
+      // Firebaseにない場合はローカルバックアップから復元
+      const backup = localStorage.getItem('backup_presComment');
+      if (backup) {
+        presComment = backup;
+        const el = document.getElementById('president-text');
+        if (el) el.value = presComment;
+      }
     }
-    if (c.final && c.final !== finalComment) { finalComment = c.final; showFinalDisplay(); }
-    if (c.outlookAI && c.outlookAI !== outlookAIComment) { outlookAIComment = c.outlookAI; showOutlookAIDisplay(); }
+    if (c.final && c.final !== finalComment) { finalComment = c.final; showComment("final-display", finalComment, "editComment(\"final\")"); }
+    if (c.outlookAI && c.outlookAI !== outlookAIComment) { outlookAIComment = c.outlookAI; showComment("outlook-ai-display", outlookAIComment, "editComment(\"outlookAI\")"); }
     if (c.outlookPres) {
       outlookPresComment = c.outlookPres;
       const el = document.getElementById('outlook-pres-text');
       if (el && el.value !== outlookPresComment) el.value = outlookPresComment;
     }
-    if (c.outlookFinal && c.outlookFinal !== outlookFinalComment) { outlookFinalComment = c.outlookFinal; showOutlookFinalDisplay(); }
+    if (c.outlookFinal && c.outlookFinal !== outlookFinalComment) { outlookFinalComment = c.outlookFinal; showComment("outlook-final-display", outlookFinalComment, "editComment(\"outlookFinal\")"); }
     if (c.schedule) {
       scheduleText = c.schedule;
       const el = document.getElementById('schedule-text');
@@ -934,161 +908,248 @@ function renderHinmoku(rows, totalProfit, curMonth) {
   document.getElementById('hinmoku-body').innerHTML = h;
 }
 
-// ===== AI評価 =====
-function genAI() {
-  const curMonth = document.getElementById('sel-month').value;
-  const rate = savedRates[curMonth] !== undefined ? savedRates[curMonth].toFixed(2) : '（集計後に確認）';
-  const prompt = `スクラップ業の${curMonth}の月次評価コメントを作成してください。全工場達成率：${rate}%。
+// ===== AI自動生成共通関数 =====
+async function callClaudeAPI(prompt, webSearch = true) {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error('APIキーが設定されていません。データ入力タブ下部で設定してください。');
 
-以下の情報を検索・分析してください：
-①東京製鉄の鉄スクラップ買取相場の最新動向
-②LME銅相場の最新価格と動き
-③円ドル為替相場の動向
-④スクラップ業界に影響する世界情勢（米中関係・鉄鋼需要など）
+  const tools = webSearch ? [{type:'web_search_20250305', name:'web_search'}] : [];
+  const body = {
+    model: 'claude-sonnet-4-6',
+    max_tokens: 1000,
+    messages: [{role:'user', content: prompt}]
+  };
+  if (webSearch) body.tools = tools;
 
-【重要】文章は20代〜50代の現場スタッフにも分かりやすい言葉で書いてください。
-・難しい専門用語は使わず、シンプルな言葉で説明する
-・「相場が上がった・下がった」「円安で仕入れが有利・不利」など具体的に書く
-・200〜300字でまとめる
-・コメントのみ返してください（前置き不要）`;
-  navigator.clipboard.writeText(prompt).then(() => {
-    alert('プロンプトをコピーしました。\nClaudeの別タブに貼り付けて実行し、返ってきたコメントを「コメントを入力・編集」ボタンから貼り付けてください。');
-  }).catch(() => {
-    alert('以下のプロンプトをClaudeにコピーしてください：\n\n' + prompt);
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    },
+    body: JSON.stringify(body)
   });
-  toggleAIEdit();
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || 'API呼び出し失敗'); }
+  const data = await res.json();
+  return data.content.filter(c => c.type === 'text').map(c => c.text).join('').trim();
 }
 
-function toggleAIEdit() {
-  const ed = document.getElementById('ai-edit');
-  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
-  if (ed.style.display === 'block' && aiComment) {
-    document.getElementById('ai-text').value = aiComment;
-  }
+function setLoading(loadingId, btnId, isLoading) {
+  const l = document.getElementById(loadingId);
+  const b = document.getElementById(btnId);
+  if (l) l.style.display = isLoading ? 'block' : 'none';
+  if (b) b.disabled = isLoading;
 }
 
-function saveAI() {
-  const t = document.getElementById('ai-text').value.trim();
-  if (!t) return;
-  aiComment = t;
-  document.getElementById('ai-edit').style.display = 'none';
-  showAIDisplay();
-  db.ref('comments/ai').set(aiComment);
-}
-
-function clearAI() {
-  aiComment = '';
-  document.getElementById('ai-text').value = '';
-  document.getElementById('ai-display').style.display = 'none';
-}
-
-function showAIDisplay() {
-  const d = document.getElementById('ai-display');
+function showComment(displayId, text, editFn) {
+  const d = document.getElementById(displayId);
+  if (!d) return;
   d.style.display = 'block';
-  d.innerHTML = aiComment.replace(/\n/g,'<br>') + `<br><button class="btn" style="margin-top:8px;font-size:11px" onclick="toggleAIEdit()">編集</button>`;
+  d.innerHTML = text.replace(/\n/g,'<br>') +
+    `<br><button class="btn" style="margin-top:8px;font-size:11px" onclick="${editFn}">✏️ 編集</button>` +
+    `<button class="btn" style="margin-top:8px;font-size:11px;margin-left:6px" onclick="clearComment('${displayId}')">🗑 クリア</button>`;
+}
+
+function clearComment(displayId) {
+  const d = document.getElementById(displayId);
+  if (d) { d.style.display = 'none'; d.innerHTML = ''; }
+  if (displayId === 'ai-display') { aiComment = ''; db.ref('comments/ai').remove(); }
+  if (displayId === 'final-display') { finalComment = ''; db.ref('comments/final').remove(); }
+  if (displayId === 'outlook-ai-display') { outlookAIComment = ''; db.ref('comments/outlookAI').remove(); }
+  if (displayId === 'outlook-final-display') { outlookFinalComment = ''; db.ref('comments/outlookFinal').remove(); }
+}
+
+// ===== AI評価（ステップ1）=====
+async function genAI() {
+  const curMonth = document.getElementById('sel-month').value;
+  const rate = savedRates[curMonth] !== undefined ? savedRates[curMonth].toFixed(2) : '未集計';
+  setLoading('ai-loading', 'btn-ai-gen', true);
+  try {
+    const prompt = `スクラップ業の${curMonth}の月次評価コメントを作成してください。全工場達成率：${rate}%。
+
+以下を最新情報で検索・調べてコメントに反映してください：
+①東京製鉄の鉄スクラップ買取相場の最新動向（直近の価格・上昇・下降など）
+②LMEの銅相場の最新価格と動き
+③円ドル為替の最新動向
+④スクラップ業界に関係する世界の出来事（米中の動き・中国の鉄鋼需要など）
+
+【文章のルール】
+・20代〜50代の現場スタッフが読む文章です
+・むずかしい言葉は使わず、誰でもわかる言葉で書いてください
+・「鉄の買取価格が上がった」「円安で有利になった」など具体的に書いてください
+・200〜300字でまとめてください
+・コメントだけを返してください（説明や前置きは不要）`;
+    aiComment = await callClaudeAPI(prompt, true);
+    showComment('ai-display', aiComment, 'editComment("ai")');
+    db.ref('comments/ai').set(aiComment);
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  }
+  setLoading('ai-loading', 'btn-ai-gen', false);
+}
+
+// ===== 総合評価（ステップ3）=====
+async function genFinal() {
+  const curMonth = document.getElementById('sel-month').value;
+  const rate = savedRates[curMonth] !== undefined ? savedRates[curMonth].toFixed(2) : '';
+  const pres = document.getElementById('president-text').value.trim();
+  if (!aiComment && !pres) { alert('先にAI評価を生成するか、社長コメントを入力してください'); return; }
+  setLoading('final-loading', 'btn-final-gen', true);
+  try {
+    const prompt = `スクラップ業の${curMonth}の総合評価コメントを作成してください。達成率：${rate}%。
+
+【AIの相場・市況分析】
+${aiComment || '（なし）'}
+
+【社長の現状コメント】
+${pres || '（なし）'}
+
+上の2つの内容をまとめて、相場の状況と会社の実績を合わせた総合評価を書いてください。
+
+【文章のルール】
+・現場の20代〜50代スタッフが読んでも理解できる言葉で書いてください
+・難しい専門用語は使わず、シンプルに書いてください
+・250〜350字でまとめてください
+・コメントだけを返してください（説明や前置きは不要）`;
+    finalComment = await callClaudeAPI(prompt, false);
+    showComment('final-display', finalComment, 'editComment("final")');
+    db.ref('comments/final').set(finalComment);
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  }
+  setLoading('final-loading', 'btn-final-gen', false);
+}
+
+// ===== AI見通し（ステップ1）=====
+async function genOutlookAI() {
+  const curMonth = document.getElementById('sel-month').value;
+  setLoading('outlook-ai-loading', 'btn-outlook-ai-gen', true);
+  try {
+    const prompt = `スクラップ業の${curMonth}以降の相場見通しを作成してください。
+
+以下を最新情報で検索・調べてコメントに反映してください：
+①東京製鉄の鉄スクラップ相場の今後2〜3ヶ月の見通し
+②LME銅相場の今後の動きとリスク
+③円ドル為替の今後の動向
+④スクラップ業界に影響する世界の動き（米中関係・中国の鉄鋼需要・世界景気など）
+
+【文章のルール】
+・現場の20代〜50代スタッフが読んでも理解できる言葉で書いてください
+・「今後は価格が上がりそう」「円安が続くと有利」など分かりやすく書いてください
+・200〜300字でまとめてください
+・コメントだけを返してください（説明や前置きは不要）`;
+    outlookAIComment = await callClaudeAPI(prompt, true);
+    showComment('outlook-ai-display', outlookAIComment, 'editComment("outlookAI")');
+    db.ref('comments/outlookAI').set(outlookAIComment);
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  }
+  setLoading('outlook-ai-loading', 'btn-outlook-ai-gen', false);
+}
+
+// ===== 総合見通し（ステップ3）=====
+async function genOutlookFinal() {
+  const curMonth = document.getElementById('sel-month').value;
+  const pres = document.getElementById('outlook-pres-text').value.trim();
+  if (!outlookAIComment && !pres) { alert('先にAI見通しを生成するか、社長コメントを入力してください'); return; }
+  setLoading('outlook-final-loading', 'btn-outlook-final-gen', true);
+  try {
+    const prompt = `スクラップ業の${curMonth}以降の総合見通しコメントを作成してください。
+
+【AIの相場・世界情勢分析】
+${outlookAIComment || '（なし）'}
+
+【社長の方針・見解】
+${pres || '（なし）'}
+
+上の2つをまとめて、今後2〜3ヶ月の見通しと対応方針を書いてください。
+
+【文章のルール】
+・現場の20代〜50代スタッフが読んでも理解できる言葉で書いてください
+・難しい専門用語は使わず、シンプルに書いてください
+・250〜350字でまとめてください
+・コメントだけを返してください（説明や前置きは不要）`;
+    outlookFinalComment = await callClaudeAPI(prompt, false);
+    showComment('outlook-final-display', outlookFinalComment, 'editComment("outlookFinal")');
+    db.ref('comments/outlookFinal').set(outlookFinalComment);
+  } catch(e) {
+    alert('エラー: ' + e.message);
+  }
+  setLoading('outlook-final-loading', 'btn-outlook-final-gen', false);
+}
+
+// ===== コメント編集 =====
+function editComment(type) {
+  const map = {
+    ai: {dispId:'ai-display', text:()=>aiComment, saveFn:'saveEditedComment("ai")'},
+    final: {dispId:'final-display', text:()=>finalComment, saveFn:'saveEditedComment("final")'},
+    outlookAI: {dispId:'outlook-ai-display', text:()=>outlookAIComment, saveFn:'saveEditedComment("outlookAI")'},
+    outlookFinal: {dispId:'outlook-final-display', text:()=>outlookFinalComment, saveFn:'saveEditedComment("outlookFinal")'},
+  };
+  const m = map[type];
+  if (!m) return;
+  const d = document.getElementById(m.dispId);
+  if (!d) return;
+  d.innerHTML = `<textarea id="edit-ta-${type}" rows="6" style="width:100%;font-size:13px;padding:6px">${m.text()}</textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="btn primary" onclick="saveEditedComment('${type}')">保存</button>
+      <button class="btn" onclick="cancelEdit('${type}')">キャンセル</button>
+    </div>`;
+}
+
+function saveEditedComment(type) {
+  const ta = document.getElementById('edit-ta-'+type);
+  if (!ta) return;
+  const val = ta.value.trim();
+  const dbMap = {ai:'comments/ai', final:'comments/final', outlookAI:'comments/outlookAI', outlookFinal:'comments/outlookFinal'};
+  const dispMap = {ai:'ai-display', final:'final-display', outlookAI:'outlook-ai-display', outlookFinal:'outlook-final-display'};
+  if (type==='ai') aiComment = val;
+  if (type==='final') finalComment = val;
+  if (type==='outlookAI') outlookAIComment = val;
+  if (type==='outlookFinal') outlookFinalComment = val;
+  showComment(dispMap[type], val, `editComment("${type}")`);
+  db.ref(dbMap[type]).set(val);
+}
+
+function cancelEdit(type) {
+  const dispMap = {ai:'ai-display', final:'final-display', outlookAI:'outlook-ai-display', outlookFinal:'outlook-final-display'};
+  const textMap = {ai:()=>aiComment, final:()=>finalComment, outlookAI:()=>outlookAIComment, outlookFinal:()=>outlookFinalComment};
+  showComment(dispMap[type], textMap[type](), `editComment("${type}")`);
 }
 
 function savePresComment() {
   presComment = document.getElementById('president-text').value;
   const m = document.getElementById('pres-msg');
-  const saveWithRetry = (retries) => {
-    db.ref('comments/president').set(presComment).then(() => {
-      m.textContent = '保存しました';
-      m.className = 'ok';
-      m.style.display = 'inline';
-      setTimeout(() => m.style.display = 'none', 2000);
-    }).catch(err => {
-      if (retries > 0) {
-        setTimeout(() => saveWithRetry(retries - 1), 1000);
-      } else {
-        m.textContent = '保存失敗。再度お試しください';
-        m.className = 'err';
-        m.style.display = 'inline';
-      }
-    });
+  m.textContent = '保存中...';
+  m.className = '';
+  m.style.display = 'inline';
+
+  // ローカルにも即時バックアップ
+  try { localStorage.setItem('backup_presComment', presComment); } catch(e) {}
+
+  const trySave = (attempt) => {
+    db.ref('comments/president').set(presComment)
+      .then(() => {
+        m.textContent = '✓ 保存しました';
+        m.className = 'ok';
+        setTimeout(() => m.style.display = 'none', 2500);
+      })
+      .catch(err => {
+        if (attempt < 5) {
+          setTimeout(() => trySave(attempt + 1), attempt * 800 + 500);
+          m.textContent = `再試行中... (${attempt}/5)`;
+          m.className = '';
+        } else {
+          m.textContent = '⚠ 保存失敗。接続を確認して再度押してください';
+          m.className = 'err';
+        }
+      });
   };
-  saveWithRetry(3);
+  trySave(1);
 }
 
-function genFinal() {
-  const curMonth = document.getElementById('sel-month').value;
-  const rate = savedRates[curMonth] !== undefined ? savedRates[curMonth].toFixed(2) : '';
-  const pres = document.getElementById('president-text').value.trim();
-  const prompt = `スクラップ業の${curMonth}月次総合評価コメントを作成してください。達成率：${rate}%。\n\n【AIの相場・市況分析】\n${aiComment||'（なし）'}\n\n【社長の現状コメント】\n${pres||'（なし）'}\n\n上記2つを統合し、相場環境と自社実績を踏まえた総合評価として250〜350字でまとめてください。経営会議資料として使える文体でお願いします。コメントのみを返してください。`;
-  navigator.clipboard.writeText(prompt).then(() => {
-    alert('プロンプトをコピーしました。\n\nClaudeの別タブに貼り付けて実行し、返ってきた総合評価を「総合評価を入力・編集」ボタンから貼り付けてください。');
-  }).catch(() => {
-    alert('以下のプロンプトをClaudeにコピーしてください：\n\n' + prompt);
-  });
-  toggleFinalEdit();
-}
-
-function toggleFinalEdit() {
-  const ed = document.getElementById('final-edit');
-  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
-  if (ed.style.display === 'block' && finalComment) {
-    document.getElementById('final-text').value = finalComment;
-  }
-}
-
-function saveFinal() {
-  const t = document.getElementById('final-text').value.trim();
-  if (!t) return;
-  finalComment = t;
-  document.getElementById('final-edit').style.display = 'none';
-  showFinalDisplay();
-  db.ref('comments/final').set(finalComment);
-}
-function clearFinal() {
-  finalComment = '';
-  document.getElementById('final-text').value = '';
-  document.getElementById('final-display').style.display = 'none';
-}
-function showFinalDisplay() {
-  const d = document.getElementById('final-display');
-  if (!d) return;
-  d.style.display = 'block';
-  d.innerHTML = finalComment.replace(/\n/g,'<br>') + `<br><button class="btn" style="margin-top:8px;font-size:11px" onclick="toggleFinalEdit()">編集</button>`;
-}
-function toggleFinalEdit() {
-  const ed = document.getElementById('final-edit');
-  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
-  if (ed.style.display === 'block' && finalComment) document.getElementById('final-text').value = finalComment;
-}
-
-// ===== 今後の見通し =====
-function genOutlookAI() {
-  const curMonth = document.getElementById('sel-month').value;
-  const prompt = `スクラップ業の${curMonth}今後の相場見通しを生成してください。以下を検索・分析してください：①東京製鉄の鉄スクラップ相場の今後2〜3ヶ月の見通し ②LME銅相場の今後の見通しとリスク要因 ③円ドル為替の今後の動向 ④米中関係・中国鉄鋼需要・世界景気など業界に影響する世界情勢の今後。200〜300字で経営者向けの見通しコメントとしてまとめてください。コメントのみを返してください。`;
-  navigator.clipboard.writeText(prompt).then(() => {
-    alert('プロンプトをコピーしました。\nClaudeの別タブに貼り付けて実行し、結果を「コメントを入力・編集」から貼り付けてください。');
-  }).catch(() => { alert('プロンプト：\n\n' + prompt); });
-  toggleOutlookAIEdit();
-}
-function toggleOutlookAIEdit() {
-  const ed = document.getElementById('outlook-ai-edit');
-  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
-  if (ed.style.display === 'block' && outlookAIComment) document.getElementById('outlook-ai-text').value = outlookAIComment;
-}
-function saveOutlookAI() {
-  const t = document.getElementById('outlook-ai-text').value.trim();
-  if (!t) return;
-  outlookAIComment = t;
-  document.getElementById('outlook-ai-edit').style.display = 'none';
-  showOutlookAIDisplay();
-  db.ref('comments/outlookAI').set(outlookAIComment);
-}
-function clearOutlookAI() {
-  outlookAIComment = '';
-  document.getElementById('outlook-ai-text').value = '';
-  document.getElementById('outlook-ai-display').style.display = 'none';
-}
-function showOutlookAIDisplay() {
-  const d = document.getElementById('outlook-ai-display');
-  if (!d) return;
-  d.style.display = 'block';
-  d.innerHTML = outlookAIComment.replace(/\n/g,'<br>') + `<br><button class="btn" style="margin-top:8px;font-size:11px" onclick="toggleOutlookAIEdit()">編集</button>`;
-}
 function saveOutlookPres() {
   outlookPresComment = document.getElementById('outlook-pres-text').value;
   const m = document.getElementById('outlook-pres-msg');
@@ -1099,28 +1160,7 @@ function saveOutlookPres() {
     setTimeout(()=>db.ref('comments/outlookPres').set(outlookPresComment).then(()=>{m.textContent='保存しました';m.className='ok';setTimeout(()=>m.style.display='none',2000);}),1500);
   });
 }
-function genOutlookFinal() {
-  const curMonth = document.getElementById('sel-month').value;
-  const pres = document.getElementById('outlook-pres-text').value.trim();
-  const prompt = `スクラップ業の${curMonth}今後の見通しを総合的にまとめてください。\n\n【AI相場・世界情勢分析】\n${outlookAIComment||'（なし）'}\n\n【社長の方針・見解】\n${pres||'（なし）'}\n\n上記2つを統合し、今後2〜3ヶ月の見通しと対応方針を250〜350字でまとめてください。経営会議資料として使える文体でお願いします。コメントのみを返してください。`;
-  navigator.clipboard.writeText(prompt).then(() => {
-    alert('プロンプトをコピーしました。\nClaudeの別タブに貼り付けて実行し、結果を「総合見通しを入力・編集」から貼り付けてください。');
-  }).catch(() => { alert('プロンプト：\n\n' + prompt); });
-  toggleOutlookFinalEdit();
-}
-function toggleOutlookFinalEdit() {
-  const ed = document.getElementById('outlook-final-edit');
-  ed.style.display = ed.style.display === 'none' ? 'block' : 'none';
-  if (ed.style.display === 'block' && outlookFinalComment) document.getElementById('outlook-final-text').value = outlookFinalComment;
-}
-function saveOutlookFinal() {
-  const t = document.getElementById('outlook-final-text').value.trim();
-  if (!t) return;
-  outlookFinalComment = t;
-  document.getElementById('outlook-final-edit').style.display = 'none';
-  showOutlookFinalDisplay();
-  db.ref('comments/outlookFinal').set(outlookFinalComment);
-}
+// ===== 今期の予定 =====
 function clearOutlookFinal() {
   outlookFinalComment = '';
   document.getElementById('outlook-final-text').value = '';
@@ -1174,11 +1214,22 @@ function printReports() {
   }
   const curMonth = document.getElementById('sel-month')?.value || '';
   document.getElementById('p-jisseki-month').textContent = '（' + curMonth + '）　単位：千円';
-  document.getElementById('p-hinmoku-month').textContent = '（' + curMonth + '）　単位：千円';
+  document.getElementById('p-hinmoku-month').textContent = '単位：千円';
 
   document.getElementById('p-jisseki-body').innerHTML = jBody.innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"').replace(/class="cur"/g,'class="pc"');
   document.getElementById('p-tassei-body').innerHTML = document.getElementById('tassei-body').innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"').replace(/class="cur"/g,'class="pc"');
-  document.getElementById('p-hinmoku-body').innerHTML = document.getElementById('hinmoku-body').innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"');
+
+  // 品種別営業利益：画面と同じ12ヶ月表をそのままコピー
+  const srcHead = document.getElementById('hinmoku-head');
+  const srcBody = document.getElementById('hinmoku-body');
+  const pHead = document.getElementById('p-hinmoku-head');
+  const pBody = document.getElementById('p-hinmoku-body');
+  if (srcHead && pHead) pHead.innerHTML = srcHead.innerHTML;
+  if (srcBody && pBody) {
+    pBody.innerHTML = srcBody.innerHTML
+      .replace(/class="sub"/g,'class="ps"')
+      .replace(/class="tot"/g,'class="pt"');
+  }
 
   const commentBox = document.getElementById('p-comment-box');
   commentBox.textContent = finalComment || (aiComment ? '【AI相場分析】\n' + aiComment + '\n\n' : '') + (presComment ? '【社長コメント】\n' + presComment : '') || '（コメントなし）';
