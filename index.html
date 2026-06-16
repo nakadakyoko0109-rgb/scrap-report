@@ -61,6 +61,7 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
   body{background:#fff;font-size:11px;font-family:'MS Gothic',Arial,sans-serif}
   .p-page{width:257mm;min-height:182mm;padding:8mm 10mm;page-break-after:always;box-sizing:border-box}
   .p-page:last-child{page-break-after:avoid}
+  .p-page.hinmoku-page{padding:5mm 6mm}
   .p-title{font-size:14px;font-weight:bold;text-align:center;margin-bottom:6px;letter-spacing:1px}
   .p-sub{font-size:11px;text-align:left;margin-bottom:6px;color:#444}
   .p-table{width:100%;border-collapse:collapse;font-size:10px}
@@ -78,7 +79,13 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
   .p-right{flex:1}
   .p-comment-box{border:0.5px solid #999;padding:6px;font-size:10px;line-height:1.8;min-height:120mm;white-space:pre-wrap;word-break:break-all}
   .p-comment-title{font-size:11px;font-weight:bold;margin-bottom:4px;border-bottom:0.5px solid #999;padding-bottom:3px}
-  @page{size:A4 landscape;margin:8mm}
+  /* 品種別営業利益：12ヶ月を1枚に収める */
+  .hinmoku-page .p-table{font-size:7.5px;table-layout:fixed;width:245mm;margin:0 auto}
+  .hinmoku-page .p-table th,.hinmoku-page .p-table td{padding:3px 2px;white-space:nowrap;overflow:hidden}
+  .hinmoku-page .p-table th:first-child,.hinmoku-page .p-table td:first-child{width:20mm;font-size:7px;text-align:left}
+  .hinmoku-page .p-table th:not(:first-child),.hinmoku-page .p-table td:not(:first-child){width:13mm;text-align:center}
+  .hinmoku-page .p-table td:nth-last-child(-n+4){text-align:right}
+  @page{size:A4 landscape;margin:6mm}
 }
 @media screen{
   #print-area{display:none}
@@ -150,11 +157,11 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
     </div>
   </div>
   <!-- 品種別営業利益 -->
-  <div class="p-page">
+  <div class="p-page hinmoku-page">
     <div class="p-title">品種別営業利益実績データ</div>
     <div class="p-sub" id="p-hinmoku-month"></div>
-    <div style="overflow-x:auto">
-    <table class="p-table" style="min-width:900px;font-size:8px" id="p-hinmoku-tbl">
+    <div style="overflow-x:visible">
+    <table class="p-table" id="p-hinmoku-tbl">
       <thead><tr id="p-hinmoku-head"></tr></thead>
       <tbody id="p-hinmoku-body"></tbody>
     </table>
@@ -218,9 +225,6 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
       <tbody id="data-body"></tbody>
     </table>
     </div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn" onclick="fillSample()">4月サンプルデータ読込</button>
-    </div>
   </div>
 
   <div class="card">
@@ -270,9 +274,32 @@ input[type=number]:focus,textarea:focus,select:focus{outline:none;border-color:#
         <th>年間営業利益</th>
         <th>達成率%</th>
         <th>増減</th>
+        <th style="min-width:200px">コメント</th>
       </tr></thead>
-      <tbody id="jisseki-body"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#999">集計を実行してください</td></tr></tbody>
+      <tbody id="jisseki-body"><tr><td colspan="6" style="text-align:center;padding:2rem;color:#999">集計を実行してください</td></tr></tbody>
     </table>
+    </div>
+    <div style="margin-top:10px">
+      <button class="btn primary" onclick="saveJissekiComments()">コメントを保存・同期</button>
+      <span id="jisseki-comment-msg" class="ok" style="display:none;margin-left:8px">保存しました</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">経費実績入力（手入力・千円）</div>
+    <table style="width:100%;font-size:13px;border-collapse:collapse">
+      <thead><tr>
+        <th style="text-align:left;padding:6px 8px;border:1px solid #ddd;background:#f0f0f0">品目</th>
+        <th style="padding:6px 8px;border:1px solid #ddd;background:#f0f0f0;text-align:right">年間目標</th>
+        <th style="padding:6px 8px;border:1px solid #ddd;background:#f0f0f0;text-align:right">実績（千円）</th>
+        <th style="padding:6px 8px;border:1px solid #ddd;background:#f0f0f0;text-align:right">達成率%</th>
+        <th style="padding:6px 8px;border:1px solid #ddd;background:#f0f0f0;min-width:160px">コメント</th>
+      </tr></thead>
+      <tbody id="extra-jisseki-body"></tbody>
+    </table>
+    <div style="margin-top:10px">
+      <button class="btn primary" onclick="saveExtraActual()">経費実績を保存・同期</button>
+      <span id="extra-msg" class="ok" style="display:none;margin-left:8px">保存しました</span>
     </div>
   </div>
 </div>
@@ -414,6 +441,11 @@ const ITEMS = [
   {k:'kaden',l:'家電リサイクル',g:'other'},
   {k:'ippan',l:'一般廃棄物収集運搬',g:'other'},
 ];
+// 運賃・修繕費は別管理（手入力）
+const EXTRA_ITEMS = [
+  {k:'untin',l:'運賃（税込）'},
+  {k:'shuzen',l:'修繕費（税込）'},
+];
 const MONTHS = ['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
 const MONTH_TARGETS = {
   '4月':11.50,'5月':18.90,'6月':27.50,'7月':35.80,'8月':43.80,'9月':52.00,
@@ -423,6 +455,8 @@ const MONTH_TARGETS = {
 let goals = {};
 let shiire = {};
 let uriage = {};
+let extraData = {untin:{goal:0,actual:0,comment:''},shuzen:{goal:0,actual:0,comment:''}};
+let jissekiComments = {};
 let savedRates = {};
 let aiComment = '';
 let finalComment = '';
@@ -564,11 +598,14 @@ function init() {
   initMonthSelect();
   loadFromDB();
 }
-
 function initGoalTable() {
   let h = '';
   ITEMS.forEach(it => {
     h += `<tr><td>${it.l}</td><td><input type="number" id="g-${it.k}" style="width:110px;text-align:right" placeholder="0" value="${goals[it.k]||''}"></td></tr>`;
+  });
+  h += `<tr><td colspan="2" style="font-size:11px;color:#888;background:#f5f5f5;padding:4px 8px">── 経費（手入力）──</td></tr>`;
+  EXTRA_ITEMS.forEach(it => {
+    h += `<tr><td>${it.l}</td><td><input type="number" id="g-${it.k}" style="width:110px;text-align:right" placeholder="0" value="${(extraData[it.k]&&extraData[it.k].goal)||''}"></td></tr>`;
   });
   document.getElementById('goal-body').innerHTML = h;
 }
@@ -598,8 +635,17 @@ function onMonthChange() {
 
 // ===== Firebase読込 =====
 function loadFromDB() {
-  db.ref('goals').once('value').then(snap => {
-    if (snap.val()) { goals = snap.val(); initGoalTable(); }
+  // goalsとextraDataを同時に読み込んでからテーブルを描画
+  Promise.all([
+    db.ref('goals').once('value'),
+    db.ref('extraData').once('value'),
+    db.ref('jissekiComments').once('value'),
+  ]).then(([goalsSnap, extraSnap, commentsSnap]) => {
+    if (goalsSnap.val()) goals = goalsSnap.val();
+    if (extraSnap.val()) extraData = extraSnap.val();
+    if (commentsSnap.val()) jissekiComments = commentsSnap.val();
+    initGoalTable();
+    initDataTable();
   });
   db.ref('savedRates').once('value').then(snap => {
     if (snap.val()) savedRates = snap.val();
@@ -672,7 +718,13 @@ function saveGoals() {
     const v = document.getElementById('g-'+it.k);
     goals[it.k] = v ? parseFloat(v.value)||0 : 0;
   });
-  db.ref('goals').set(goals).then(() => {
+  EXTRA_ITEMS.forEach(it => {
+    const v = document.getElementById('g-'+it.k);
+    if (!extraData[it.k]) extraData[it.k] = {goal:0,actual:0,comment:''};
+    extraData[it.k].goal = v ? parseFloat(v.value)||0 : 0;
+  });
+  db.ref('goals').set(goals);
+  db.ref('extraData').set(extraData).then(() => {
     const m = document.getElementById('goal-msg');
     m.style.display = 'inline';
     setTimeout(() => m.style.display = 'none', 2000);
@@ -766,17 +818,22 @@ function renderJisseki(rows, totalProfit, totalGoal, curMonth) {
   const paper = rows.filter(r => r.g==='paper');
   const other = rows.filter(r => r.g==='other');
   let h = '';
-  const row = r => `<tr>
+  const row = r => {
+    const c = jissekiComments[r.k] || '';
+    return `<tr>
     <td>${r.l}</td>
     <td>${r.goal>0?r.goal.toLocaleString():'-'}</td>
     <td>${r.profit.toLocaleString()}</td>
     <td>${r.goal>0?r.rate:'-'}</td>
-    <td>${r.goal>0?r.rate:'-'}</td></tr>`;
+    <td>${r.goal>0?r.rate:'-'}</td>
+    <td><input type="text" id="jc-${r.k}" value="${c}" style="width:100%;font-size:12px;padding:2px 4px;border:1px solid #ddd;border-radius:3px" placeholder="コメントを入力"></td>
+    </tr>`;
+  };
   const sub = (label, items) => {
     const p = items.reduce((a,r)=>a+r.profit,0);
     const g = items.reduce((a,r)=>a+r.goal,0);
     const rt = g>0?Math.round(p/g*100):0;
-    return `<tr class="sub"><td>${label}</td><td>${g>0?g.toLocaleString():'-'}</td><td>${p.toLocaleString()}</td><td>${g>0?rt:'-'}</td><td>${g>0?rt:'-'}</td></tr>`;
+    return `<tr class="sub"><td>${label}</td><td>${g>0?g.toLocaleString():'-'}</td><td>${p.toLocaleString()}</td><td>${g>0?rt:'-'}</td><td>${g>0?rt:'-'}</td><td></td></tr>`;
   };
   metal.forEach(r => h += row(r));
   h += sub('小計', metal);
@@ -784,7 +841,58 @@ function renderJisseki(rows, totalProfit, totalGoal, curMonth) {
   h += sub('小計', paper);
   other.forEach(r => h += row(r));
   const totRate = totalGoal>0?Math.round(totalProfit/totalGoal*100):0;
-  h += `<tr class="tot"><td>合計</td><td>${totalGoal.toLocaleString()}</td><td>${totalProfit.toLocaleString()}</td><td>${totRate}</td><td>${totRate}</td></tr>`;
+  h += `<tr class="tot"><td>合計</td><td>${totalGoal.toLocaleString()}</td><td>${totalProfit.toLocaleString()}</td><td>${totRate}</td><td>${totRate}</td><td></td></tr>`;
+  document.getElementById('jisseki-body').innerHTML = h;
+  renderExtraJisseki();
+}
+
+function renderExtraJisseki() {
+  let h = '';
+  EXTRA_ITEMS.forEach(it => {
+    const d = extraData[it.k] || {goal:0,actual:0,comment:''};
+    const rate = d.goal>0?Math.round(d.actual/d.goal*100):0;
+    h += `<tr>
+      <td style="padding:6px 8px;border:1px solid #ddd">${it.l}</td>
+      <td style="padding:6px 8px;border:1px solid #ddd;text-align:right">${d.goal>0?d.goal.toLocaleString():'-'}</td>
+      <td style="padding:4px 8px;border:1px solid #ddd;text-align:right">
+        <input type="number" id="extra-actual-${it.k}" value="${d.actual||''}" style="width:100px;text-align:right;font-size:12px;padding:2px 4px;border:1px solid #ddd;border-radius:3px" placeholder="0">
+      </td>
+      <td style="padding:6px 8px;border:1px solid #ddd;text-align:right">${d.goal>0?rate:'-'}</td>
+      <td style="padding:4px 8px;border:1px solid #ddd">
+        <input type="text" id="extra-comment-${it.k}" value="${d.comment||''}" style="width:100%;font-size:12px;padding:2px 4px;border:1px solid #ddd;border-radius:3px" placeholder="コメントを入力">
+      </td>
+    </tr>`;
+  });
+  document.getElementById('extra-jisseki-body').innerHTML = h;
+}
+
+function saveJissekiComments() {
+  ITEMS.forEach(r => {
+    const el = document.getElementById('jc-'+r.k);
+    if (el) jissekiComments[r.k] = el.value;
+  });
+  db.ref('jissekiComments').set(jissekiComments).then(() => {
+    const m = document.getElementById('jisseki-comment-msg');
+    m.style.display = 'inline';
+    setTimeout(() => m.style.display = 'none', 2000);
+  });
+}
+
+function saveExtraActual() {
+  EXTRA_ITEMS.forEach(it => {
+    if (!extraData[it.k]) extraData[it.k] = {goal:0,actual:0,comment:''};
+    const aEl = document.getElementById('extra-actual-'+it.k);
+    const cEl = document.getElementById('extra-comment-'+it.k);
+    if (aEl) extraData[it.k].actual = parseFloat(aEl.value)||0;
+    if (cEl) extraData[it.k].comment = cEl.value;
+  });
+  db.ref('extraData').set(extraData).then(() => {
+    const m = document.getElementById('extra-msg');
+    m.style.display = 'inline';
+    setTimeout(() => m.style.display = 'none', 2000);
+    renderExtraJisseki();
+  });
+}
   document.getElementById('jisseki-body').innerHTML = h;
 }
 
