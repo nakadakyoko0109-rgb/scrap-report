@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -289,7 +288,19 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
   <div class="card">
     <div class="card-title">社長評価</div>
     <div class="step-lbl">ステップ1 — AI相場・市況分析</div>
-    <button class="btn" id="btn-ai" onclick="genAI()">⚡ AI評価を自動生成</button>
+    <div class="row">
+      <button class="btn" id="btn-ai" onclick="genAI()">⚡ AI評価を自動生成</button>
+      <button class="btn" onclick="togglePromptEditor('ai-prompt-wrap')" style="font-size:12px">✏️ AIへの指示を編集</button>
+    </div>
+    <div id="ai-prompt-wrap" style="display:none;margin-top:8px;background:#fffde7;border:1px solid #ffe082;border-radius:4px;padding:12px">
+      <div style="font-size:12px;color:#666;margin-bottom:6px">AIへの指示内容（自由に変更できます）</div>
+      <textarea id="ai-prompt-text" rows="6" style="width:100%;font-size:12px;padding:6px"></textarea>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" onclick="savePrompt('ai')">保存・同期</button>
+        <button class="btn" onclick="resetPrompt('ai')" style="font-size:12px">デフォルトに戻す</button>
+        <span id="ai-prompt-msg" style="display:none;font-size:12px" class="ok">保存しました</span>
+      </div>
+    </div>
     <div id="ai-loading" style="display:none;margin-top:8px;font-size:13px;color:#666">相場情報を分析中<span class="loading-dots"></span></div>
     <div id="ai-display" class="ai-box" style="display:none;margin-top:8px"></div>
     <hr class="divider">
@@ -301,7 +312,19 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
     </div>
     <hr class="divider">
     <div class="step-lbl">ステップ3 — 総合評価（AI＋社長コメントを自動統合）</div>
-    <button class="btn" id="btn-final" onclick="genFinal()">⚡ 総合評価を自動生成</button>
+    <div class="row">
+      <button class="btn" id="btn-final" onclick="genFinal()">⚡ 総合評価を自動生成</button>
+      <button class="btn" onclick="togglePromptEditor('final-prompt-wrap')" style="font-size:12px">✏️ AIへの指示を編集</button>
+    </div>
+    <div id="final-prompt-wrap" style="display:none;margin-top:8px;background:#fffde7;border:1px solid #ffe082;border-radius:4px;padding:12px">
+      <div style="font-size:12px;color:#666;margin-bottom:6px">AIへの指示内容（自由に変更できます）</div>
+      <textarea id="final-prompt-text" rows="6" style="width:100%;font-size:12px;padding:6px"></textarea>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" onclick="savePrompt('final')">保存・同期</button>
+        <button class="btn" onclick="resetPrompt('final')" style="font-size:12px">デフォルトに戻す</button>
+        <span id="final-prompt-msg" style="display:none;font-size:12px" class="ok">保存しました</span>
+      </div>
+    </div>
     <div id="final-loading" style="display:none;margin-top:8px;font-size:13px;color:#666">総合評価を生成中<span class="loading-dots"></span></div>
     <div id="final-display" class="final-box" style="display:none;margin-top:8px"></div>
   </div>
@@ -309,7 +332,19 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
   <div class="card">
     <div class="card-title">今後の見通し</div>
     <div class="step-lbl">ステップ1 — AI相場・世界情勢分析</div>
-    <button class="btn" id="btn-oai" onclick="genOutlookAI()">⚡ AI見通しを自動生成</button>
+    <div class="row">
+      <button class="btn" id="btn-oai" onclick="genOutlookAI()">⚡ AI見通しを自動生成</button>
+      <button class="btn" onclick="togglePromptEditor('oai-prompt-wrap')" style="font-size:12px">✏️ AIへの指示を編集</button>
+    </div>
+    <div id="oai-prompt-wrap" style="display:none;margin-top:8px;background:#fffde7;border:1px solid #ffe082;border-radius:4px;padding:12px">
+      <div style="font-size:12px;color:#666;margin-bottom:6px">AIへの指示内容（自由に変更できます）</div>
+      <textarea id="oai-prompt-text" rows="6" style="width:100%;font-size:12px;padding:6px"></textarea>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" onclick="savePrompt('oai')">保存・同期</button>
+        <button class="btn" onclick="resetPrompt('oai')" style="font-size:12px">デフォルトに戻す</button>
+        <span id="oai-prompt-msg" style="display:none;font-size:12px" class="ok">保存しました</span>
+      </div>
+    </div>
     <div id="oai-loading" style="display:none;margin-top:8px;font-size:13px;color:#666">相場・世界情勢を分析中<span class="loading-dots"></span></div>
     <div id="oai-display" class="ai-box" style="display:none;margin-top:8px"></div>
     <hr class="divider">
@@ -321,7 +356,19 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
     </div>
     <hr class="divider">
     <div class="step-lbl">ステップ3 — 総合見通し（AI＋社長コメントを自動統合）</div>
-    <button class="btn" id="btn-ofinal" onclick="genOutlookFinal()">⚡ 総合見通しを自動生成</button>
+    <div class="row">
+      <button class="btn" id="btn-ofinal" onclick="genOutlookFinal()">⚡ 総合見通しを自動生成</button>
+      <button class="btn" onclick="togglePromptEditor('ofinal-prompt-wrap')" style="font-size:12px">✏️ AIへの指示を編集</button>
+    </div>
+    <div id="ofinal-prompt-wrap" style="display:none;margin-top:8px;background:#fffde7;border:1px solid #ffe082;border-radius:4px;padding:12px">
+      <div style="font-size:12px;color:#666;margin-bottom:6px">AIへの指示内容（自由に変更できます）</div>
+      <textarea id="ofinal-prompt-text" rows="6" style="width:100%;font-size:12px;padding:6px"></textarea>
+      <div class="row" style="margin-top:6px">
+        <button class="btn primary" onclick="savePrompt('ofinal')">保存・同期</button>
+        <button class="btn" onclick="resetPrompt('ofinal')" style="font-size:12px">デフォルトに戻す</button>
+        <span id="ofinal-prompt-msg" style="display:none;font-size:12px" class="ok">保存しました</span>
+      </div>
+    </div>
     <div id="ofinal-loading" style="display:none;margin-top:8px;font-size:13px;color:#666">総合見通しを生成中<span class="loading-dots"></span></div>
     <div id="ofinal-display" class="final-box" style="display:none;margin-top:8px"></div>
   </div>
@@ -405,6 +452,51 @@ let jissekiComments = {};
 let aiComment='', finalComment='', presComment='';
 let oaiComment='', ofinalComment='', opresComment='';
 let scheduleText='', nextyearText='';
+let customPrompts={};
+
+const DEFAULT_PROMPTS = {
+  ai: `スクラップ業の{month}の月次評価コメントを作成してください。全工場達成率：{rate}%。
+
+以下を最新情報で検索してコメントに反映してください：
+①東京製鉄の鉄スクラップ買取相場の最新動向
+②LME銅相場の最新価格と動き
+③円ドル為替の動向
+④スクラップ業界に影響する世界情勢
+
+【ルール】20代〜50代の現場スタッフが読む文章。むずかしい言葉は使わず、誰でもわかる言葉で。200〜300字。コメントのみ返してください。`,
+
+  final: `スクラップ業の{month}の総合評価コメントを作成してください。達成率：{rate}%。
+
+【AIの相場・市況分析】
+{ai_comment}
+
+【社長の現状コメント】
+{pres_comment}
+
+上の2つをまとめて、相場の状況と会社の実績を合わせた総合評価を書いてください。
+【ルール】現場スタッフが読んでもわかる言葉で。250〜350字。コメントのみ返してください。`,
+
+  oai: `スクラップ業の{month}以降の相場見通しを作成してください。
+
+以下を最新情報で検索してください：
+①東京製鉄の鉄スクラップ相場の今後2〜3ヶ月の見通し
+②LME銅相場の今後の動き
+③円ドル為替の今後の動向
+④スクラップ業界に影響する世界の動き
+
+【ルール】現場スタッフが読んでもわかる言葉で。200〜300字。コメントのみ返してください。`,
+
+  ofinal: `スクラップ業の{month}以降の総合見通しコメントを作成してください。
+
+【AIの相場・世界情勢分析】
+{oai_comment}
+
+【社長の方針・見解】
+{opres_comment}
+
+上の2つをまとめて、今後2〜3ヶ月の見通しと対応方針を書いてください。
+【ルール】現場スタッフが読んでもわかる言葉で。250〜350字。コメントのみ返してください。`
+};
 
 // ===== 初期化 =====
 function init() {
@@ -471,6 +563,11 @@ function loadFromDB() {
   });
 
   db.ref('results').once('value').then(s => { if(s.val()) renderAll(s.val()); });
+
+  db.ref('customPrompts').once('value').then(s => {
+    if(s.val()) customPrompts = s.val();
+    initPromptEditors();
+  });
 
   db.ref('comments').on('value', s => {
     if(!s.val()) return;
@@ -724,7 +821,45 @@ function renderHinmoku(rows,totalProfit,curMonth) {
   document.getElementById('hinmoku-body').innerHTML=h;
 }
 
-// ===== AI自動生成 =====
+// ===== プロンプト管理 =====
+function initPromptEditors() {
+  ['ai','final','oai','ofinal'].forEach(type => {
+    const el = document.getElementById(type+'-prompt-text');
+    if(el) el.value = customPrompts[type] || DEFAULT_PROMPTS[type] || '';
+  });
+}
+
+function togglePromptEditor(wrapId) {
+  const w = document.getElementById(wrapId);
+  if(!w) return;
+  w.style.display = w.style.display === 'none' ? 'block' : 'none';
+}
+
+function savePrompt(type) {
+  const el = document.getElementById(type+'-prompt-text');
+  if(!el) return;
+  customPrompts[type] = el.value;
+  db.ref('customPrompts/'+type).set(el.value).then(() => {
+    const m = document.getElementById(type+'-prompt-msg');
+    if(m){ m.style.display='inline'; setTimeout(()=>m.style.display='none',2000); }
+  });
+}
+
+function resetPrompt(type) {
+  if(!confirm('デフォルトの指示内容に戻しますか？')) return;
+  const el = document.getElementById(type+'-prompt-text');
+  if(el) el.value = DEFAULT_PROMPTS[type] || '';
+  delete customPrompts[type];
+  db.ref('customPrompts/'+type).remove();
+  const m = document.getElementById(type+'-prompt-msg');
+  if(m){ m.textContent='デフォルトに戻しました'; m.style.display='inline'; setTimeout(()=>m.style.display='none',2000); }
+}
+
+function getPrompt(type, vars) {
+  let p = customPrompts[type] || DEFAULT_PROMPTS[type] || '';
+  Object.keys(vars).forEach(k => { p = p.replace(new RegExp('{'+k+'}','g'), vars[k]); });
+  return p;
+}
 function getApiKey(){ return localStorage.getItem('claude_api_key')||''; }
 function saveApiKey(){
   const k=document.getElementById('api-key-input').value.trim();
@@ -796,7 +931,8 @@ async function genAI(){
   const rate=savedRates[m]!==undefined?savedRates[m].toFixed(2):'未集計';
   setLoad('ai-loading','btn-ai',true);
   try{
-    const text=await callAI(`スクラップ業の${m}の月次評価コメントを作成してください。全工場達成率：${rate}%。\n\n以下を最新情報で検索してコメントに反映してください：\n①東京製鉄の鉄スクラップ買取相場の最新動向\n②LME銅相場の最新価格と動き\n③円ドル為替の動向\n④スクラップ業界に影響する世界情勢\n\n【ルール】20代〜50代の現場スタッフが読む文章。むずかしい言葉は使わず、誰でもわかる言葉で。200〜300字。コメントのみ返してください。`,true);
+    const prompt = getPrompt('ai', {month:m, rate:rate});
+    const text=await callAI(prompt,true);
     aiComment=text;showDisp('ai-display',aiComment,'ai');db.ref('comments/ai').set(aiComment);
   }catch(e){alert('エラー: '+e.message);}
   setLoad('ai-loading','btn-ai',false);
@@ -808,7 +944,8 @@ async function genFinal(){
   const rate=savedRates[m]!==undefined?savedRates[m].toFixed(2):'';
   setLoad('final-loading','btn-final',true);
   try{
-    const text=await callAI(`スクラップ業の${m}の総合評価コメントを作成してください。達成率：${rate}%。\n\n【AIの相場・市況分析】\n${aiComment||'（なし）'}\n\n【社長の現状コメント】\n${presComment||'（なし）'}\n\n上の2つをまとめて、相場の状況と会社の実績を合わせた総合評価を書いてください。\n【ルール】現場スタッフが読んでもわかる言葉で。250〜350字。コメントのみ返してください。`,false);
+    const prompt = getPrompt('final', {month:m, rate:rate, ai_comment:aiComment||'（なし）', pres_comment:presComment||'（なし）'});
+    const text=await callAI(prompt,false);
     finalComment=text;showDisp('final-display',finalComment,'final');db.ref('comments/final').set(finalComment);
   }catch(e){alert('エラー: '+e.message);}
   setLoad('final-loading','btn-final',false);
@@ -818,7 +955,8 @@ async function genOutlookAI(){
   const m=document.getElementById('sel-month').value;
   setLoad('oai-loading','btn-oai',true);
   try{
-    const text=await callAI(`スクラップ業の${m}以降の相場見通しを作成してください。\n\n以下を最新情報で検索してください：\n①東京製鉄の鉄スクラップ相場の今後2〜3ヶ月の見通し\n②LME銅相場の今後の動き\n③円ドル為替の今後の動向\n④スクラップ業界に影響する世界の動き\n\n【ルール】現場スタッフが読んでもわかる言葉で。「今後は価格が上がりそう」など具体的に。200〜300字。コメントのみ返してください。`,true);
+    const prompt = getPrompt('oai', {month:m});
+    const text=await callAI(prompt,true);
     oaiComment=text;showDisp('oai-display',oaiComment,'oai');db.ref('comments/oai').set(oaiComment);
   }catch(e){alert('エラー: '+e.message);}
   setLoad('oai-loading','btn-oai',false);
@@ -829,7 +967,8 @@ async function genOutlookFinal(){
   const m=document.getElementById('sel-month').value;
   setLoad('ofinal-loading','btn-ofinal',true);
   try{
-    const text=await callAI(`スクラップ業の${m}以降の総合見通しコメントを作成してください。\n\n【AIの相場・世界情勢分析】\n${oaiComment||'（なし）'}\n\n【社長の方針・見解】\n${opresComment||'（なし）'}\n\n上の2つをまとめて、今後2〜3ヶ月の見通しと対応方針を書いてください。\n【ルール】現場スタッフが読んでもわかる言葉で。250〜350字。コメントのみ返してください。`,false);
+    const prompt = getPrompt('ofinal', {month:m, oai_comment:oaiComment||'（なし）', opres_comment:opresComment||'（なし）'});
+    const text=await callAI(prompt,false);
     ofinalComment=text;showDisp('ofinal-display',ofinalComment,'ofinal');db.ref('comments/ofinal').set(ofinalComment);
   }catch(e){alert('エラー: '+e.message);}
   setLoad('ofinal-loading','btn-ofinal',false);
