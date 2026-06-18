@@ -23,7 +23,7 @@ header h1{font-size:16px;font-weight:500}
 .card-title{font-size:13px;font-weight:500;color:#444;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .num{background:#1a1a2e;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
 table{width:100%;border-collapse:collapse;font-size:12px}
-th{background:#f0f0f0;padding:6px 8px;text-align:right;border:1px solid #ddd;font-weight:500;color:#555;white-space:nowrap}
+th{background:#f0f0f0;padding:6px 8px;text-align:center;border:1px solid #ddd;font-weight:500;color:#555;white-space:nowrap}
 th:first-child{text-align:left}
 td{padding:6px 8px;text-align:right;border:1px solid #ddd;color:#222}
 td:first-child{text-align:left}
@@ -62,9 +62,11 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
   .p-title{font-size:14px;font-weight:bold;text-align:center;margin-bottom:8px}
   .p-sub{font-size:11px;margin-bottom:6px;color:#444}
   .p-tbl{width:100%;border-collapse:collapse;font-size:10px}
-  .p-tbl th{background:#e8e8e8;padding:4px 6px;text-align:right;border:0.5px solid #999;font-weight:bold;white-space:nowrap}
+  .p-tbl th{background:#e8e8e8;padding:4px 6px;text-align:center;border:0.5px solid #999;font-weight:bold;white-space:nowrap}
   .p-tbl th:first-child{text-align:left}
   .p-tbl td{padding:4px 6px;text-align:right;border:0.5px solid #999}
+  .p-tbl td:first-child{text-align:left}
+  .p-tbl td:last-child{text-align:left;white-space:pre-wrap}
   .p-tbl td:first-child{text-align:left}
   .p-tbl tr.ps td{background:#f0f0f0;font-weight:bold}
   .p-tbl tr.pt td{background:#dde4f0;font-weight:bold}
@@ -611,7 +613,7 @@ function renderJisseki(rows,totalProfit,totalGoal,curMonth) {
   const paper=rows.filter(r=>r.g==='paper');
   const other=rows.filter(r=>r.g==='other');
   let h='';
-  const row=r=>`<tr><td>${r.l}</td><td>${r.goal>0?r.goal.toLocaleString():'-'}</td><td>${r.profit.toLocaleString()}</td><td>${r.goal>0?r.rate:'-'}</td><td>${r.goal>0?r.rate:'-'}</td><td><input type="text" id="jc-${r.k}" value="${jissekiComments[r.k]||''}" style="width:100%;font-size:12px;padding:2px 4px;border:1px solid #ddd;border-radius:3px" placeholder="コメント"></td></tr>`;
+  const row=r=>`<tr><td>${r.l}</td><td>${r.goal>0?r.goal.toLocaleString():'-'}</td><td>${r.profit.toLocaleString()}</td><td>${r.goal>0?r.rate:'-'}</td><td>${r.goal>0?r.rate:'-'}</td><td><textarea id="jc-${r.k}" rows="2" style="width:100%;font-size:12px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;resize:vertical">${jissekiComments[r.k]||''}</textarea></td></tr>`;
   const sub=(label,items)=>{const p=items.reduce((a,r)=>a+r.profit,0);const g=items.reduce((a,r)=>a+r.goal,0);const rt=g>0?Math.round(p/g*100):0;return`<tr class="sub"><td>${label}</td><td>${g>0?g.toLocaleString():'-'}</td><td>${p.toLocaleString()}</td><td>${g>0?rt:'-'}</td><td>${g>0?rt:'-'}</td><td></td></tr>`;};
   metal.forEach(r=>h+=row(r)); h+=sub('小計',metal);
   paper.forEach(r=>h+=row(r)); h+=sub('小計',paper);
@@ -880,13 +882,61 @@ function doPrint(){
   const jb=document.getElementById('jisseki-body');
   if(!jb||jb.innerHTML.includes('集計を実行')){alert('先に集計を実行してください');return;}
   const curMonth=document.getElementById('sel-month')?.value||'';
+
+  // コメントをtextareaから取得して保存
+  ITEMS.forEach(r => {
+    const e = document.getElementById('jc-'+r.k);
+    if(e) jissekiComments[r.k] = e.value;
+  });
+
   document.getElementById('pj-month').textContent='（'+curMonth+'）　単位：千円';
 
-  // 全工場実績
-  document.getElementById('pj-body').innerHTML=jb.innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"').replace(/class="cur"/g,'class="pc"');
+  // 全工場実績：印刷用テーブルをJSで直接生成
+  const rows = Array.from(jb.querySelectorAll('tr'));
+  let pjHtml = '';
+  rows.forEach(tr => {
+    const cells = Array.from(tr.querySelectorAll('td'));
+    if(cells.length === 0) return;
+    const cls = tr.classList.contains('sub') ? 'ps' : tr.classList.contains('tot') ? 'pt' : tr.classList.contains('cur') ? 'pc' : '';
+    let tdHtml = '';
+    cells.forEach((td, i) => {
+      if(i < 5) {
+        tdHtml += `<td>${td.textContent.trim()}</td>`;
+      } else {
+        // コメント列：textareaの値を取得
+        const ta = td.querySelector('textarea');
+        const val = ta ? ta.value : td.textContent.trim();
+        tdHtml += `<td style="white-space:pre-wrap;font-size:9px">${val}</td>`;
+      }
+    });
+    pjHtml += `<tr${cls?' class="'+cls+'"':''}>${tdHtml}</tr>`;
+  });
+  document.getElementById('pj-body').innerHTML = pjHtml;
+
   // 経費
   const eb=document.getElementById('extra-body');
-  if(eb)document.getElementById('pj-extra-body').innerHTML=eb.innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"');
+  if(eb){
+    const erows = Array.from(eb.querySelectorAll('tr'));
+    let epHtml = '';
+    erows.forEach(tr => {
+      const cells = Array.from(tr.querySelectorAll('td'));
+      if(cells.length===0) return;
+      let tdHtml = '';
+      cells.forEach((td, i) => {
+        if(i===2){
+          const inp = td.querySelector('input');
+          tdHtml += `<td>${inp?inp.value:td.textContent.trim()}</td>`;
+        } else if(i===4){
+          const inp = td.querySelector('input');
+          tdHtml += `<td style="white-space:pre-wrap;font-size:9px">${inp?inp.value:td.textContent.trim()}</td>`;
+        } else {
+          tdHtml += `<td>${td.textContent.trim()}</td>`;
+        }
+      });
+      epHtml += `<tr>${tdHtml}</tr>`;
+    });
+    document.getElementById('pj-extra-body').innerHTML = epHtml;
+  }
 
   // 月別達成率
   document.getElementById('pt-body').innerHTML=document.getElementById('tassei-body').innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"').replace(/class="cur"/g,'class="pc"');
@@ -897,7 +947,7 @@ function doPrint(){
   document.getElementById('p-schedule').textContent=scheduleText||'（なし）';
   document.getElementById('p-nextyear').textContent=nextyearText||'（なし）';
 
-  // 品種別営業利益（ヘッダーと本体をコピー）
+  // 品種別営業利益
   const ph=document.getElementById('hinmoku-head');
   const pb=document.getElementById('hinmoku-body');
   const pph=document.getElementById('ph-head');
