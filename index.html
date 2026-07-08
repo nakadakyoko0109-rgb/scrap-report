@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -130,8 +131,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
           <th style="width:50px">目標%</th>
           <th style="width:50px">差引</th>
           <th style="width:55px">達成率%</th>
-          <th style="width:50px">増加</th>
-        </tr></thead><tbody id="pt-body"></tbody></table>
+          <th style="width:50px">累計%</th>
         <div style="margin-top:6mm">
           <div class="p-box-title">今期の予定</div>
           <div class="p-box" id="p-schedule" style="min-height:35mm"></div>
@@ -279,7 +279,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
     <div class="card-title">2026年度 月別達成率</div>
     <div style="overflow-x:auto">
     <table style="max-width:500px">
-      <thead><tr><th style="text-align:left;width:50px">月</th><th style="width:70px">目標%</th><th style="width:70px">差引</th><th style="width:80px">達成率%</th><th style="width:70px">増加</th></tr></thead>
+      <thead><tr><th style="text-align:left;width:50px">月</th><th style="width:70px">目標%</th><th style="width:70px">差引</th><th style="width:80px">達成率%</th><th style="width:70px">累計%</th></tr></thead>
       <tbody id="tassei-body"><tr><td colspan="5" style="text-align:center;padding:2rem;color:#999">集計を実行してください</td></tr></tbody>
     </table>
     </div>
@@ -678,15 +678,20 @@ function calculate() {
 
   const totalProfit=rows.reduce((a,r)=>a+r.profit,0);
   const totalGoal=rows.reduce((a,r)=>a+r.goal,0);
-  const totalRate=totalGoal>0?parseFloat((totalProfit/totalGoal*100).toFixed(2)):0;
+
+  // 経費（運賃・修繕費）を年間目標に含める
+  const extraGoalTotal = EXTRAS.reduce((a,it)=>a+(extraGoals[it.k]||0),0);
+  const grandGoal = totalGoal + extraGoalTotal;
+  const totalRate=grandGoal>0?parseFloat((totalProfit/grandGoal*100).toFixed(2)):0;
 
   savedRates[curMonth]=totalRate;
   monthlyRows[curMonth]=rows.map(r=>({k:r.k,profit:r.profit,uThou:r.uThou}));
 
   const mIdx=MONTHS.indexOf(curMonth);
-  const inc=mIdx===0?totalRate:(totalRate-(savedRates[MONTHS[mIdx-1]]||prevRate));
+  // 増加列 = 4月からの累計（当月達成率をそのまま表示）
+  const inc = totalRate;
 
-  const result={rows,totalProfit,totalGoal,totalRate,curMonth,monthTarget,prevRate,inc:parseFloat(inc.toFixed(2))};
+  const result={rows,totalProfit,totalGoal:grandGoal,totalRate,curMonth,monthTarget,prevRate,inc:parseFloat(inc.toFixed(2))};
 
   db.ref('results').set(result);
   db.ref('savedRates').set(savedRates);
@@ -715,8 +720,20 @@ function renderJisseki(rows,totalProfit,totalGoal,curMonth) {
   metal.forEach(r=>h+=row(r)); h+=sub('小計',metal);
   paper.forEach(r=>h+=row(r)); h+=sub('小計',paper);
   other.forEach(r=>h+=row(r));
-  const totRate=totalGoal>0?Math.round(totalProfit/totalGoal*100):0;
-  h+=`<tr class="tot"><td>合計</td><td>${totalGoal.toLocaleString()}</td><td>${totalProfit.toLocaleString()}</td><td>${totRate}</td><td>${totRate}</td><td></td></tr>`;
+
+  // 品種小計の達成率
+  const itemsRate=totalGoal>0?Math.round(totalProfit/totalGoal*100):0;
+  h+=`<tr class="tot"><td>合計</td><td>${totalGoal.toLocaleString()}</td><td>${totalProfit.toLocaleString()}</td><td>${itemsRate}</td><td>${itemsRate}</td><td></td></tr>`;
+
+  // 経費含む総合達成率
+  const extraGoalTotal=EXTRAS.reduce((a,it)=>a+(extraGoals[it.k]||0),0);
+  const extraActualTotal=EXTRAS.reduce((a,it)=>a+(extraActuals[it.k]||0),0);
+  const grandGoal=totalGoal+extraGoalTotal;
+  const grandProfit=totalProfit; // 品種の営業利益合計
+  const grandRate=grandGoal>0?parseFloat((grandProfit/grandGoal*100).toFixed(2)):0;
+
+  h+=`<tr style="background:#1a1a2e;color:#fff;font-weight:600"><td>達成率（経費含む）</td><td>${grandGoal.toLocaleString()}</td><td>${grandProfit.toLocaleString()}</td><td colspan="2" style="text-align:center;font-size:15px">${grandRate}%</td><td></td></tr>`;
+
   document.getElementById('jisseki-body').innerHTML=h;
   renderExtraTable();
 }
@@ -744,19 +761,20 @@ function renderTassei(curMonth,monthTarget,actualRate,inc) {
     if(i<mIdx){
       const s=savedRates[m];
       if(s!==undefined){
-        const prev=i===0?0:(savedRates[MONTHS[i-1]]||0);
         const d=(s-tgt).toFixed(2);
-        const ii=i===0?s.toFixed(2):(s-prev).toFixed(2);
+        // 増加列 = 4月からの累計達成率（＝当月達成率そのもの）
+        const cumStr=s.toFixed(2);
         const cls=s<tgt?'class="red"':'class="green"';
-        h+=`<tr><td style="text-align:left">${m}</td><td>${tgt.toFixed(2)}</td><td>${d}</td><td ${cls}>${s.toFixed(2)}</td><td>${ii}</td></tr>`;
+        h+=`<tr><td style="text-align:left">${m}</td><td>${tgt.toFixed(2)}</td><td>${d}</td><td ${cls}>${s.toFixed(2)}</td><td>${cumStr}</td></tr>`;
       } else {
         h+=`<tr><td style="text-align:left">${m}</td><td>${tgt.toFixed(2)}</td><td></td><td></td><td></td></tr>`;
       }
     } else if(i===mIdx){
       const diff=(actualRate-monthTarget).toFixed(2);
       const cls=actualRate<monthTarget?'class="red"':'class="green"';
-      const incStr=inc>=0?'+'+inc.toFixed(2):inc.toFixed(2);
-      h+=`<tr class="cur"><td style="text-align:left"><strong>${m}</strong></td><td>${monthTarget.toFixed(2)}</td><td>${diff}</td><td ${cls}><strong>${actualRate.toFixed(2)}</strong></td><td>${incStr}</td></tr>`;
+      // 増加列 = 当月累計達成率
+      const cumStr=actualRate.toFixed(2);
+      h+=`<tr class="cur"><td style="text-align:left"><strong>${m}</strong></td><td>${monthTarget.toFixed(2)}</td><td>${diff}</td><td ${cls}><strong>${actualRate.toFixed(2)}</strong></td><td>${cumStr}</td></tr>`;
     } else {
       h+=`<tr><td style="text-align:left">${m}</td><td>${tgt.toFixed(2)}</td><td></td><td></td><td></td></tr>`;
     }
