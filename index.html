@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -497,10 +498,16 @@ const DEFAULT_PROMPTS = {
 【ルール】現場スタッフが読んでもわかる言葉で。250〜350字。コメントのみ返してください。`
 };
 
+// ===== 安全なlocalStorage =====
+function lsGet(key) { try { return localStorage.getItem(key); } catch(e) { return null; } }
+function lsSet(key, val) { try { localStorage.setItem(key, val); } catch(e) {} }
+
 // ===== 初期化 =====
 function init() {
-  const k = localStorage.getItem('claude_api_key');
-  if (k) { const e = document.getElementById('api-key-msg'); if(e){e.textContent='設定済み';e.style.display='inline';} }
+  try {
+    const k = lsGet('claude_api_key');
+    if (k) { const e = document.getElementById('api-key-msg'); if(e){e.textContent='設定済み';e.style.display='inline';} }
+  } catch(e) {}
   initMonthSelect();
   loadFromDB();
 }
@@ -607,7 +614,7 @@ function saveGoals() {
 function saveWithRetry(ref, val, msgId, label) {
   const m = document.getElementById(msgId);
   if(m){m.textContent='保存中...';m.style.display='inline';m.className='';}
-  try { localStorage.setItem('bk_'+msgId, JSON.stringify(val)); } catch(e){}
+  try { lsSet('bk_'+msgId, JSON.stringify(val)); } catch(e){}
   const try_ = (n) => {
     ref.set(val).then(()=>{
       if(m){m.textContent='✓ 保存しました';m.className='ok';setTimeout(()=>m.style.display='none',2500);}
@@ -877,11 +884,11 @@ function getPrompt(type, vars) {
   Object.keys(vars).forEach(k => { p = p.replace(new RegExp('{'+k+'}','g'), vars[k]); });
   return p;
 }
-function getApiKey(){ return localStorage.getItem('claude_api_key')||''; }
+function getApiKey(){ return lsGet('claude_api_key')||''; }
 function saveApiKey(){
   const k=document.getElementById('api-key-input').value.trim();
   if(!k)return;
-  localStorage.setItem('claude_api_key',k);
+  lsSet('claude_api_key',k);
   document.getElementById('api-key-input').value='';
   const m=document.getElementById('api-key-msg');
   m.textContent='設定済み';m.style.display='inline';
@@ -1124,7 +1131,7 @@ function showTab(name){
   });
 }
 
-init();
+try { init(); } catch(e) { console.error('init error:', e); document.querySelector('.tabs') && (document.querySelector('.tabs').style.display='flex'); }
 </script>
 </body>
 </html>
