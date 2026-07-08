@@ -498,15 +498,11 @@ const DEFAULT_PROMPTS = {
 };
 
 // ===== 安全なlocalStorage =====
-function lsGet(key) { try { return localStorage.getItem(key); } catch(e) { return null; } }
-function lsSet(key, val) { try { localStorage.setItem(key, val); } catch(e) {} }
+function lsGet(key) { return null; }
+function lsSet(key, val) {}
 
 // ===== 初期化 =====
 function init() {
-  try {
-    const k = lsGet('claude_api_key');
-    if (k) { const e = document.getElementById('api-key-msg'); if(e){e.textContent='設定済み';e.style.display='inline';} }
-  } catch(e) {}
   initMonthSelect();
   loadFromDB();
 }
@@ -565,6 +561,14 @@ function loadFromDB() {
     if(mrs.val()) monthlyRows = mrs.val();
     initGoalTable();
     initDataTable();
+  });
+
+  db.ref('apikey').once('value').then(s => {
+    if(s.val()) {
+      window._apiKey = s.val();
+      const m=document.getElementById('api-key-msg');
+      if(m){m.textContent='設定済み';m.style.display='inline';}
+    }
   });
 
   db.ref('results').once('value').then(s => { if(s.val()) renderAll(s.val()); });
@@ -883,11 +887,12 @@ function getPrompt(type, vars) {
   Object.keys(vars).forEach(k => { p = p.replace(new RegExp('{'+k+'}','g'), vars[k]); });
   return p;
 }
-function getApiKey(){ return lsGet('claude_api_key')||''; }
+function getApiKey(){ return window._apiKey||''; }
 function saveApiKey(){
   const k=document.getElementById('api-key-input').value.trim();
   if(!k)return;
-  lsSet('claude_api_key',k);
+  window._apiKey=k;
+  db.ref('apikey').set(k);
   document.getElementById('api-key-input').value='';
   const m=document.getElementById('api-key-msg');
   m.textContent='設定済み';m.style.display='inline';
