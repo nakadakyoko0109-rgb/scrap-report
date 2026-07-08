@@ -253,22 +253,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
     <div class="row" style="margin-top:10px">
       <button class="btn primary" onclick="saveJissekiComments()">コメントを保存・同期</button>
       <span id="jc-msg" class="ok" style="display:none">保存しました</span>
-    </div>
-  </div>
-  <div class="card">
-    <div class="card-title">経費実績入力（手入力・千円）</div>
-    <div style="overflow-x:auto">
-    <table>
-      <thead><tr>
-        <th style="text-align:left;width:180px">品目</th>
-        <th>年間目標</th><th style="width:120px">実績（千円）</th><th>達成率%</th>
-        <th style="min-width:180px">コメント</th>
-      </tr></thead>
-      <tbody id="extra-body"></tbody>
-    </table>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn primary" onclick="saveExtra()">経費実績を保存・同期</button>
+      <button class="btn primary" onclick="saveExtra()" style="margin-left:8px">経費実績を保存・同期</button>
       <span id="extra-msg" class="ok" style="display:none">保存しました</span>
     </div>
   </div>
@@ -435,7 +420,7 @@ const ITEMS = [
   {k:'kaden',l:'家電リサイクル',g:'other'},{k:'ippan',l:'一般廃棄物収集運搬',g:'other'},
 ];
 const EXTRAS = [
-  {k:'untin',l:'運賃（税込）'},{k:'shuzen',l:'修繕費（税込）'}
+  {k:'untin',l:'運賃（税抜）'},{k:'shuzen',l:'修繕費（税抜）'}
 ];
 const MONTHS = ['4月','5月','6月','7月','8月','9月','10月','11月','12月','1月','2月','3月'];
 const MTARGETS = {'4月':11.50,'5月':18.90,'6月':27.50,'7月':35.80,'8月':43.80,'9月':52.00,'10月':61.00,'11月':68.90,'12月':78.60,'1月':86.10,'2月':94.00,'3月':100.00};
@@ -657,8 +642,9 @@ function saveExtra() {
     const c=document.getElementById('ec-'+it.k); if(c)extraComments[it.k]=c.value;
   });
   Promise.all([db.ref('extraActuals').set(extraActuals),db.ref('extraComments').set(extraComments)]).then(()=>{
-    renderExtraTable();
-    const m=document.getElementById('extra-msg'); m.style.display='inline'; setTimeout(()=>m.style.display='none',2000);
+    // 再集計して表示更新
+    db.ref('results').once('value').then(s=>{ if(s.val()) renderAll(s.val()); });
+    const m=document.getElementById('extra-msg'); if(m){m.style.display='inline'; setTimeout(()=>m.style.display='none',2000);}
   });
 }
 
@@ -690,19 +676,21 @@ function calculate() {
   const totalProfit=rows.reduce((a,r)=>a+r.profit,0);
   const totalGoal=rows.reduce((a,r)=>a+r.goal,0);
 
-  // 経費（運賃・修繕費）を年間目標に含める
+  // 達成率計算：品種目標 - 経費目標
   const extraGoalTotal = EXTRAS.reduce((a,it)=>a+(extraGoals[it.k]||0),0);
-  const grandGoal = totalGoal + extraGoalTotal;
-  const totalRate=grandGoal>0?parseFloat((totalProfit/grandGoal*100).toFixed(2)):0;
+  const extraActualTotal = EXTRAS.reduce((a,it)=>a+(extraActuals[it.k]||0),0);
+  const grandGoal = totalGoal - extraGoalTotal;
+  const grandProfit = totalProfit - extraActualTotal;
+  const totalRate=grandGoal>0?parseFloat((grandProfit/grandGoal*100).toFixed(2)):0;
 
   savedRates[curMonth]=totalRate;
   monthlyRows[curMonth]=rows.map(r=>({k:r.k,profit:r.profit,uThou:r.uThou}));
 
   const mIdx=MONTHS.indexOf(curMonth);
-  // 増加列 = 4月からの累計（当月達成率をそのまま表示）
   const inc = totalRate;
 
-  const result={rows,totalProfit,totalGoal:grandGoal,totalRate,curMonth,monthTarget,prevRate,inc:parseFloat(inc.toFixed(2))};
+  // totalGoalは品種のみ（経費含まず）でFirebaseに保存
+  const result={rows,totalProfit,totalGoal,totalRate,curMonth,monthTarget,prevRate,inc:parseFloat(inc.toFixed(2))};
 
   db.ref('results').set(result);
   db.ref('savedRates').set(savedRates);
@@ -726,31 +714,19 @@ function renderJisseki(rows,totalProfit,totalGoal,curMonth) {
   const paper=rows.filter(r=>r.g==='paper');
   const other=rows.filter(r=>r.g==='other');
   let h='';
+
   const row=r=>`<tr><td>${r.l}</td><td>${r.goal>0?r.goal.toLocaleString():'-'}</td><td>${r.profit.toLocaleString()}</td><td>${r.goal>0?r.rate:'-'}</td><td>${r.goal>0?r.rate:'-'}</td><td><textarea id="jc-${r.k}" rows="2" style="width:100%;font-size:12px;padding:2px 4px;border:1px solid #ddd;border-radius:3px;resize:vertical">${jissekiComments[r.k]||''}</textarea></td></tr>`;
-  const sub=(label,items)=>{const p=items.reduce((a,r)=>a+r.profit,0);const g=items.reduce((a,r)=>a+r.goal,0);const rt=g>0?Math.round(p/g*100):0;return`<tr class="sub"><td>${label}</td><td>${g>0?g.toLocaleString():'-'}</td><td>${p.toLocaleString()}</td><td>${g>0?rt:'-'}</td><td>${g>0?rt:'-'}</td><td></td></tr>`;};
-  metal.forEach(r=>h+=row(r)); h+=sub('小計',metal);
-  paper.forEach(r=>h+=row(r)); h+=sub('小計',paper);
+  const subRow=(label,items)=>{const p=items.reduce((a,r)=>a+r.profit,0);const g=items.reduce((a,r)=>a+r.goal,0);const rt=g>0?Math.round(p/g*100):0;return`<tr class="sub"><td>${label}</td><td>${g>0?g.toLocaleString():'-'}</td><td>${p.toLocaleString()}</td><td>${g>0?rt:'-'}</td><td>${g>0?rt:'-'}</td><td></td></tr>`;};
+
+  metal.forEach(r=>h+=row(r)); h+=subRow('小計',metal);
+  paper.forEach(r=>h+=row(r)); h+=subRow('小計',paper);
   other.forEach(r=>h+=row(r));
 
-  // 品種小計の達成率
+  // 品種小計
   const itemsRate=totalGoal>0?Math.round(totalProfit/totalGoal*100):0;
-  h+=`<tr class="tot"><td>合計</td><td>${totalGoal.toLocaleString()}</td><td>${totalProfit.toLocaleString()}</td><td>${itemsRate}</td><td>${itemsRate}</td><td></td></tr>`;
+  h+=`<tr class="sub"><td>小計</td><td>${totalGoal.toLocaleString()}</td><td>${totalProfit.toLocaleString()}</td><td>${itemsRate}</td><td>${itemsRate}</td><td></td></tr>`;
 
-  // 経費含む総合達成率
-  const extraGoalTotal=EXTRAS.reduce((a,it)=>a+(extraGoals[it.k]||0),0);
-  const extraActualTotal=EXTRAS.reduce((a,it)=>a+(extraActuals[it.k]||0),0);
-  const grandGoal=totalGoal+extraGoalTotal;
-  const grandProfit=totalProfit; // 品種の営業利益合計
-  const grandRate=grandGoal>0?parseFloat((grandProfit/grandGoal*100).toFixed(2)):0;
-
-  h+=`<tr style="background:#1a1a2e;color:#fff;font-weight:600"><td>達成率（経費含む）</td><td>${grandGoal.toLocaleString()}</td><td>${grandProfit.toLocaleString()}</td><td colspan="2" style="text-align:center;font-size:15px">${grandRate}%</td><td></td></tr>`;
-
-  document.getElementById('jisseki-body').innerHTML=h;
-  renderExtraTable();
-}
-
-function renderExtraTable() {
-  let h='';
+  // 運賃・修繕費（手入力・同じテーブル内）
   EXTRAS.forEach(it=>{
     const g=extraGoals[it.k]||0;
     const a=extraActuals[it.k]||0;
@@ -758,34 +734,52 @@ function renderExtraTable() {
     const rt=g>0?Math.round(a/g*100):0;
     h+=`<tr><td>${it.l}</td><td>${g>0?g.toLocaleString():'-'}</td>
     <td><input type="number" id="ea-${it.k}" value="${a||''}" style="width:110px;text-align:right;font-size:12px;padding:2px 4px;border:1px solid #ddd;border-radius:3px" placeholder="0"></td>
-    <td>${g>0?rt:'-'}</td>
+    <td>${g>0?rt:'-'}</td><td>${g>0?rt:'-'}</td>
     <td><input type="text" id="ec-${it.k}" value="${c}" style="width:100%;font-size:12px;padding:2px 4px;border:1px solid #ddd;border-radius:3px" placeholder="コメント"></td></tr>`;
   });
-  document.getElementById('extra-body').innerHTML=h;
+
+  // 経費小計
+  const extraGoalTotal=EXTRAS.reduce((a,it)=>a+(extraGoals[it.k]||0),0);
+  const extraActualTotal=EXTRAS.reduce((a,it)=>a+(extraActuals[it.k]||0),0);
+  const extraRate=extraGoalTotal>0?Math.round(extraActualTotal/extraGoalTotal*100):0;
+  h+=`<tr class="sub"><td>小計</td><td>${extraGoalTotal>0?extraGoalTotal.toLocaleString():'-'}</td><td>${extraActualTotal.toLocaleString()}</td><td>${extraGoalTotal>0?extraRate:'-'}</td><td>${extraGoalTotal>0?extraRate:'-'}</td><td></td></tr>`;
+
+  // 合計（品種小計 - 経費小計）
+  const grandGoal=totalGoal-extraGoalTotal;
+  const grandProfit=totalProfit-extraActualTotal;
+  const grandRate=grandGoal>0?parseFloat((grandProfit/grandGoal*100).toFixed(2)):0;
+  h+=`<tr class="tot"><td>合計</td><td>${grandGoal>0?grandGoal.toLocaleString():'-'}</td><td>${grandProfit.toLocaleString()}</td><td>${grandRate}</td><td>${grandRate}</td><td></td></tr>`;
+
+  // 達成率行
+  h+=`<tr style="background:#1a1a2e;color:#fff;font-weight:700;font-size:15px"><td colspan="2">達成率</td><td colspan="4" style="text-align:center">${grandRate}%</td></tr>`;
+  document.getElementById('jisseki-body').innerHTML=h;
+}
+
+function renderExtraTable(totalProfit, totalGoal) {
+  // 経費は全工場実績テーブルに統合したので空関数
 }
 
 function renderTassei(curMonth,monthTarget,actualRate,inc) {
   const mIdx=MONTHS.indexOf(curMonth);
   let h='';
+  let cumulative=0; // 4月からの累計
   MONTHS.forEach((m,i)=>{
     const tgt=MTARGETS[m]||0;
     if(i<mIdx){
       const s=savedRates[m];
       if(s!==undefined){
+        cumulative+=s;
         const d=(s-tgt).toFixed(2);
-        // 増加列 = 4月からの累計達成率（＝当月達成率そのもの）
-        const cumStr=s.toFixed(2);
         const cls=s<tgt?'class="red"':'class="green"';
-        h+=`<tr><td style="text-align:left">${m}</td><td>${tgt.toFixed(2)}</td><td>${d}</td><td ${cls}>${s.toFixed(2)}</td><td>${cumStr}</td></tr>`;
+        h+=`<tr><td style="text-align:left">${m}</td><td>${tgt.toFixed(2)}</td><td>${d}</td><td ${cls}>${s.toFixed(2)}</td><td>${cumulative.toFixed(2)}</td></tr>`;
       } else {
         h+=`<tr><td style="text-align:left">${m}</td><td>${tgt.toFixed(2)}</td><td></td><td></td><td></td></tr>`;
       }
     } else if(i===mIdx){
+      cumulative+=actualRate;
       const diff=(actualRate-monthTarget).toFixed(2);
       const cls=actualRate<monthTarget?'class="red"':'class="green"';
-      // 増加列 = 当月累計達成率
-      const cumStr=actualRate.toFixed(2);
-      h+=`<tr class="cur"><td style="text-align:left"><strong>${m}</strong></td><td>${monthTarget.toFixed(2)}</td><td>${diff}</td><td ${cls}><strong>${actualRate.toFixed(2)}</strong></td><td>${cumStr}</td></tr>`;
+      h+=`<tr class="cur"><td style="text-align:left"><strong>${m}</strong></td><td>${monthTarget.toFixed(2)}</td><td>${diff}</td><td ${cls}><strong>${actualRate.toFixed(2)}</strong></td><td><strong>${cumulative.toFixed(2)}</strong></td></tr>`;
     } else {
       h+=`<tr><td style="text-align:left">${m}</td><td>${tgt.toFixed(2)}</td><td></td><td></td><td></td></tr>`;
     }
