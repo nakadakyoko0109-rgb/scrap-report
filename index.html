@@ -106,21 +106,12 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:#1a1a2e}
     <div class="p-sub" id="pj-month"></div>
     <table class="p-tbl"><thead><tr>
       <th style="text-align:left;width:140px">品目（税抜）</th>
-      <th style="width:80px">年間目標</th>
-      <th style="width:90px">年間営業利益</th>
-      <th style="width:55px">達成率%</th>
-      <th style="width:55px">増減</th>
+      <th style="width:70px">年間目標</th>
+      <th style="width:80px">年間営業利益</th>
+      <th style="width:50px">達成率%</th>
+      <th style="width:50px">増減</th>
       <th>コメント</th>
     </tr></thead><tbody id="pj-body"></tbody></table>
-    <div style="margin-top:6mm">
-      <table class="p-tbl"><thead><tr>
-        <th style="text-align:left;width:140px">経費</th>
-        <th style="width:80px">年間目標</th>
-        <th style="width:90px">実績</th>
-        <th style="width:55px">達成率%</th>
-        <th>コメント</th>
-      </tr></thead><tbody id="pj-extra-body"></tbody></table>
-    </div>
   </div>
   <div class="p-page">
     <div class="p-title">月別達成率</div>
@@ -751,7 +742,7 @@ function renderJisseki(rows,totalProfit,totalGoal,curMonth) {
   h+=`<tr class="tot"><td>合計</td><td>${grandGoal>0?grandGoal.toLocaleString():'-'}</td><td>${grandProfit.toLocaleString()}</td><td>${grandRate}</td><td>${grandRate}</td><td></td></tr>`;
 
   // 達成率行
-  h+=`<tr style="background:#1a1a2e;color:#fff;font-weight:700;font-size:15px"><td colspan="2">達成率</td><td colspan="4" style="text-align:center">${grandRate}%</td></tr>`;
+  h+=`<tr><td style="font-weight:700"><strong>達成率</strong></td><td colspan="4" style="text-align:center;font-weight:700;font-size:14px"><strong>${grandRate}%</strong></td><td></td></tr>`;
   document.getElementById('jisseki-body').innerHTML=h;
 }
 
@@ -1046,60 +1037,40 @@ function doPrint(){
   if(!jb||jb.innerHTML.includes('集計を実行')){alert('先に集計を実行してください');return;}
   const curMonth=document.getElementById('sel-month')?.value||'';
 
-  // コメントをtextareaから取得して保存
-  ITEMS.forEach(r => {
-    const e = document.getElementById('jc-'+r.k);
-    if(e) jissekiComments[r.k] = e.value;
-  });
+  // コメント・経費をtextarea/inputから取得
+  ITEMS.forEach(r => { const e=document.getElementById('jc-'+r.k); if(e)jissekiComments[r.k]=e.value; });
 
   document.getElementById('pj-month').textContent='（'+curMonth+'）　単位：千円';
 
-  // 全工場実績：印刷用テーブルをJSで直接生成
+  // 全工場実績：各行を処理（textarea/inputの値を取得）
   const rows = Array.from(jb.querySelectorAll('tr'));
   let pjHtml = '';
   rows.forEach(tr => {
     const cells = Array.from(tr.querySelectorAll('td'));
     if(cells.length === 0) return;
-    const cls = tr.classList.contains('sub') ? 'ps' : tr.classList.contains('tot') ? 'pt' : tr.classList.contains('cur') ? 'pc' : '';
+    const cls = tr.classList.contains('sub') ? 'ps' : tr.classList.contains('tot') ? 'pt' : '';
+    // 達成率行（背景が紺色）
+    const isDark = tr.style.background && tr.style.background.includes('1a1a2e');
     let tdHtml = '';
     cells.forEach((td, i) => {
-      if(i < 5) {
-        tdHtml += `<td>${td.textContent.trim()}</td>`;
-      } else {
-        // コメント列：textareaの値を取得
-        const ta = td.querySelector('textarea');
-        const val = ta ? ta.value : td.textContent.trim();
-        tdHtml += `<td style="white-space:pre-wrap;font-size:9px">${val}</td>`;
-      }
+      const inp = td.querySelector('input[type="number"]');
+      const ta = td.querySelector('textarea');
+      const tinp = td.querySelector('input[type="text"]');
+      let val = '';
+      if(inp) val = inp.value||'0';
+      else if(ta) val = ta.value;
+      else if(tinp) val = tinp.value;
+      else val = td.textContent.trim();
+      const style = (i===5||i===4&&tinp) ? 'white-space:pre-wrap;font-size:9px;text-align:left' : '';
+      tdHtml += `<td${style?` style="${style}"`:''} colspan="${td.colSpan>1?td.colSpan:''}">${val}</td>`;
     });
-    pjHtml += `<tr${cls?' class="'+cls+'"':''}>${tdHtml}</tr>`;
+    if(isDark){
+      pjHtml += `<tr style="background:#1a1a2e;color:#fff;font-weight:700">${tdHtml}</tr>`;
+    } else {
+      pjHtml += `<tr${cls?' class="'+cls+'"':''}>${tdHtml}</tr>`;
+    }
   });
   document.getElementById('pj-body').innerHTML = pjHtml;
-
-  // 経費
-  const eb=document.getElementById('extra-body');
-  if(eb){
-    const erows = Array.from(eb.querySelectorAll('tr'));
-    let epHtml = '';
-    erows.forEach(tr => {
-      const cells = Array.from(tr.querySelectorAll('td'));
-      if(cells.length===0) return;
-      let tdHtml = '';
-      cells.forEach((td, i) => {
-        if(i===2){
-          const inp = td.querySelector('input');
-          tdHtml += `<td>${inp?inp.value:td.textContent.trim()}</td>`;
-        } else if(i===4){
-          const inp = td.querySelector('input');
-          tdHtml += `<td style="white-space:pre-wrap;font-size:9px">${inp?inp.value:td.textContent.trim()}</td>`;
-        } else {
-          tdHtml += `<td>${td.textContent.trim()}</td>`;
-        }
-      });
-      epHtml += `<tr>${tdHtml}</tr>`;
-    });
-    document.getElementById('pj-extra-body').innerHTML = epHtml;
-  }
 
   // 月別達成率
   document.getElementById('pt-body').innerHTML=document.getElementById('tassei-body').innerHTML.replace(/class="sub"/g,'class="ps"').replace(/class="tot"/g,'class="pt"').replace(/class="cur"/g,'class="pc"');
